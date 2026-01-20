@@ -1,0 +1,80 @@
+import { body, query, param } from 'express-validator';
+
+export const createDonationSchema = [
+  body('donorName')
+    .trim()
+    .notEmpty().withMessage('Donor name is required')
+    .isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
+  
+  body('donorPhone')
+    .trim()
+    .notEmpty().withMessage('Phone number is required')
+    .matches(/^[0-9]{10}$/).withMessage('Valid 10-digit phone number required'),
+  
+  body('amount')
+    .isFloat({ min: 1 }).withMessage('Amount must be at least ₹1')
+    .toFloat(),
+  
+  body('purpose')
+    .trim()
+    .notEmpty().withMessage('Purpose is required')
+    .isLength({ max: 200 }).withMessage('Purpose too long'),
+  
+  body('paymentMethod')
+    .isIn(['CASH', 'CARD', 'BANK_TRANSFER', 'UPI', 'CHEQUE'])
+    .withMessage('Invalid payment method'),
+  
+  body('notes')
+    .optional()
+    .trim()
+    .isLength({ max: 500 }).withMessage('Notes too long'),
+  
+  body('categoryId')
+    .optional()
+    .isUUID().withMessage('Invalid category ID')
+];
+
+export const donationFilterSchema = [
+  query('startDate')
+    .optional()
+    .isISO8601().withMessage('Invalid start date'),
+  
+  query('endDate')
+    .optional()
+    .isISO8601().withMessage('Invalid end date'),
+  
+  query('purpose')
+    .optional()
+    .trim()
+    .isLength({ max: 100 }),
+  
+  query('paymentMethod')
+    .optional()
+    .isIn(['CASH', 'CARD', 'BANK_TRANSFER', 'UPI', 'CHEQUE']),
+  
+  query('minAmount')
+    .optional()
+    .isFloat({ min: 0 }),
+  
+  query('maxAmount')
+    .optional()
+    .isFloat({ min: 0 }),
+  
+  query('search')
+    .optional()
+    .trim()
+    .isLength({ max: 100 }),
+  
+  query('page')
+    .optional()
+    .isInt({ min: 1 }).toInt(),
+  
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 }).toInt()
+];
+
+export const donationIdSchema = [
+  param('id')
+    .isUUID().withMessage('Invalid donation ID')
+];

@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  UPI
+  CHEQUE
+}
+
+enum AuditAction {
+  DONATION_CREATED
+  OPERATOR_LOGIN
+  ADMIN_LOGIN
+  PDF_EXPORTED
+  USER_CREATED
+  USER_UPDATED
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  role          Role          @default(OPERATOR)
+  isActive      Boolean       @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Relations
+  donations     Donation[]
+  auditLogs     AuditLog[]
+  
+  @@map("users")
+}
+
+model Donation {
+  id              String        @id @default(uuid())
+  donorName       String
+  donorPhone      String
+  amount          Decimal       @db.Decimal(10, 2)
+  purpose         String
+  paymentMethod   PaymentMethod
+  notes           String?
+  date            DateTime      @default(now())
+  
+  // Foreign keys
+  operatorId      String
+  categoryId      String?
+  
+  // Relations
+  operator        User          @relation(fields: [operatorId], references: [id])
+  category        DonationCategory? @relation(fields: [categoryId], references: [id])
+  
+  @@map("donations")
+  @@index([operatorId])
+  @@index([date])
+}
+
+model DonationCategory {
+  id            String        @id @default(uuid())
+  name          String        @unique
+  description   String?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  
+  donations     Donation[]
+  
+  @@map("donation_categories")
+}
+
+model AuditLog {
+  id            String        @id @default(uuid())
+  action        AuditAction
+  entityType    String
+  entityId      String?
+  description   String
+  userRole      Role
+  userId        String
+  ipAddress     String?
+  userAgent     String?
+  metadata      Json?
+  timestamp     DateTime      @default(now())
+  
+  // Relations
+  user          User          @relation(fields: [userId], references: [id])
+  
+  @@map("audit_logs")
+  @@index([timestamp])
+  @@index([userId])
+  @@index([action])
+}

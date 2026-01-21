@@ -11,7 +11,6 @@ import {
   Smartphone,
   CheckCircle,
   HandCoins,
-  DollarSign
 } from 'lucide-react'
 
 const DonationList = ({ donations = [], loading = false }) => {
@@ -95,7 +94,6 @@ const DonationList = ({ donations = [], loading = false }) => {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center font-bold text-gray-900">
-                    <DollarSign className="w-4 h-4 mr-1" />
                     {formatAmount(donation.amount)}
                   </div>
                   <div className="flex items-center text-sm text-gray-700">
@@ -162,7 +160,6 @@ const DonationList = ({ donations = [], loading = false }) => {
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center font-bold text-gray-900">
-                    <DollarSign className="w-4 h-4 mr-1" />
                     {formatAmount(donation.amount)}
                   </div>
                 </td>

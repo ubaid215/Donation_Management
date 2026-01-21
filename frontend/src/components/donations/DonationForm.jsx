@@ -237,10 +237,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
 
   const paymentMethods = [
     { value: 'CASH', label: 'Cash' },
-    { value: 'CARD', label: 'Card' },
-    { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-    { value: 'UPI', label: 'UPI' },
-    { value: 'CHEQUE', label: 'Cheque' }
+    { value: 'BANK_TRANSFER', label: 'Bank Transfer' }
   ]
 
   return (

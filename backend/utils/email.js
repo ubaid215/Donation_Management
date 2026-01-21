@@ -5,31 +5,31 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Enhanced email template renderer
 export function renderDonationEmail({
-  donorName,
-  amount,
-  purpose,
-  paymentMethod,
-  donationId,
-  date,
-  customMessage = '',
-  receiptNumber = ''
+    donorName,
+    amount,
+    purpose,
+    paymentMethod,
+    donationId,
+    date,
+    customMessage = '',
+    receiptNumber = ''
 }) {
-  const formattedDate = new Date(date).toLocaleDateString('en-PK', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+    const formattedDate = new Date(date).toLocaleDateString('en-PK', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
 
-  const paymentMethodMap = {
-    CASH: 'Cash',
-    CARD: 'Credit/Debit Card',
-    BANK_TRANSFER: 'Bank Transfer',
-    UPI: 'UPI Payment',
-    CHEQUE: 'Cheque'
-  };
+    const paymentMethodMap = {
+        CASH: 'Cash',
+        CARD: 'Credit/Debit Card',
+        BANK_TRANSFER: 'Bank Transfer',
+        UPI: 'UPI Payment',
+        CHEQUE: 'Cheque'
+    };
 
-  return `
+    return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -195,6 +195,23 @@ export function renderDonationEmail({
             <p>${customMessage}</p>
         </div>
         ` : ''}
+
+        <div class="quran-verse" style="background:#eef6ff; border-left-color:#1e3c72;">
+    <p><strong>📌 Important Note:</strong></p>
+    <p>
+        Your Sadaqat and Khairat are spent, with your permission, on the Khanqah, Jamia,
+        and related Shariah-compliant, righteous, and welfare activities.
+    </p>
+</div>
+
+<div class="urdu">
+    <p><strong>📌 اہم وضاحت:</strong></p>
+    <p>
+        آپ کے صدقات و خیرات آپ کی اجازت سے خانقاہ، جامعہ اور ان سے متعلق
+        (نیک اور جائز) شرعی و فلاحی امور پر خرچ کیے جاتے ہیں۔
+    </p>
+</div>
+
         
         <div class="quran-verse">
             <p><strong>📖 Allah says in the Qur'an:</strong></p>
@@ -224,7 +241,7 @@ export function renderDonationEmail({
         
         <div class="footer">
             <p>This is an automated receipt. Please keep this email for your records.</p>
-            <p>© ${new Date().getFullYear()} Astana Foundation. All rights reserved.</p>
+            <p>© ${new Date().getFullYear()} Khanqah Saifia Murshidabad. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -234,23 +251,23 @@ export function renderDonationEmail({
 
 // Function to send donation receipt email
 export async function sendDonationReceipt({
-  to,
-  donationData,
-  customMessage = ''
+    to,
+    donationData,
+    customMessage = ''
 }) {
-  try {
-    const html = renderDonationEmail({
-      donorName: donationData.donorName,
-      amount: donationData.amount,
-      purpose: donationData.purpose,
-      paymentMethod: donationData.paymentMethod,
-      donationId: donationData.id,
-      date: donationData.date,
-      customMessage,
-      receiptNumber: donationData.receiptNumber
-    });
+    try {
+        const html = renderDonationEmail({
+            donorName: donationData.donorName,
+            amount: donationData.amount,
+            purpose: donationData.purpose,
+            paymentMethod: donationData.paymentMethod,
+            donationId: donationData.id,
+            date: donationData.date,
+            customMessage,
+            receiptNumber: donationData.receiptNumber
+        });
 
-    const text = `
+        const text = `
 JazakAllah Khair for Your Donation
 
 Dear ${donationData.donorName},
@@ -271,32 +288,32 @@ Khanqah Saifia & Jamia Abi Bakr
 Faisalabad, Pakistan
 `;
 
-    const { data, error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || 'Astana Foundation <donations@astanafoundation.org>',
-      to,
-      subject: `JazakAllah Khair for Your Donation - Rs ${donationData.amount} - Astana Foundation`,
-      html,
-      text
-    });
+        const { data, error } = await resend.emails.send({
+            from: process.env.EMAIL_FROM || 'Astana Foundation <donations@astanafoundation.org>',
+            to,
+            subject: `JazakAllah Khair for Your Donation - Rs ${donationData.amount} - Astana Foundation`,
+            html,
+            text
+        });
 
-    if (error) {
-      console.error('Email sending error:', error);
-      throw error;
+        if (error) {
+            console.error('Email sending error:', error);
+            throw error;
+        }
+
+        return {
+            success: true,
+            messageId: data.id,
+            timestamp: new Date()
+        };
+    } catch (error) {
+        console.error('Failed to send donation receipt:', error);
+        throw error;
     }
-
-    return {
-      success: true,
-      messageId: data.id,
-      timestamp: new Date()
-    };
-  } catch (error) {
-    console.error('Failed to send donation receipt:', error);
-    throw error;
-  }
 }
 
 // Function to send WhatsApp notification
 export async function sendWhatsAppNotification({ to, message }) {
-  // Implementation remains the same as your existing function
-  // ... (your existing WhatsApp code)
+    // Implementation remains the same as your existing function
+    // ... (your existing WhatsApp code)
 }

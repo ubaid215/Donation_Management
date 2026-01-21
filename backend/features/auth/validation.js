@@ -97,7 +97,7 @@ export const updateProfileSchema = [
   body('phone')
     .optional()
     .trim()
-    .matches(/^\+?[0-9\s\-\(\)]{5,20}$/).withMessage('Please enter a valid phone number')
+    .isLength({ min: 5, max: 20 }).withMessage('Phone must be 5-20 characters')
 ];
 
 export const changePasswordSchema = [

@@ -2,78 +2,100 @@ import api from './api.js'
 
 const adminService = {
   getSystemStats: async () => {
-    const response = await api.get('/admin/stats/system')
-    return response.data // This returns { success: true, stats: {...} }
+    try {
+      console.log('Making request to /admin/stats/system')
+      const response = await api.get('/admin/stats/system')
+      console.log('getSystemStats response:', response)
+      return response 
+    } catch (error) {
+      console.error('getSystemStats error:', error)
+      throw error
+    }
   },
 
   getDashboardMetrics: async () => {
-    const response = await api.get('/admin/stats/dashboard')
-    return response.data // This returns { success: true, metrics: {...} }
+    try {
+      console.log('Making request to /admin/stats/dashboard')
+      const response = await api.get('/admin/stats/dashboard')
+      console.log('getDashboardMetrics response:', response)
+      return response // Already the data object
+    } catch (error) {
+      console.error('getDashboardMetrics error:', error)
+      throw error
+    }
   },
 
   getDonationInsights: async (timeframe = 'month') => {
-    const response = await api.get('/admin/analytics/insights', { 
-      params: { timeframe } 
-    })
-    return response.data // This returns { success: true, insights: {...} }
+    try {
+      console.log('Making request to /admin/analytics/insights with timeframe:', timeframe)
+      const response = await api.get('/admin/analytics/insights', { 
+        params: { timeframe } 
+      })
+      // console.log('getDonationInsights raw response:', response)
+      if (!response) {
+        console.error('No response received')
+        throw new Error('Invalid response from server')
+      }
+      
+      return response
+    } catch (error) {
+      console.error('getDonationInsights error:', error)
+      console.error('Error response:', error.response)
+      throw error
+    }
   },
 
   getTimeSeriesData: async (startDate, endDate) => {
-    const response = await api.get('/admin/analytics/time-series', {
-      params: { startDate, endDate }
-    })
-    return response.data // This returns { success: true, data: {...} }
+    try {
+      console.log('Making request to /admin/analytics/time-series')
+      const response = await api.get('/admin/analytics/time-series', {
+        params: { startDate, endDate }
+      })
+      // console.log('getTimeSeriesData response:', response)
+      return response 
+    } catch (error) {
+      console.error('getTimeSeriesData error:', error)
+      throw error
+    }
   },
 
   getCategoryBreakdown: async () => {
-    const response = await api.get('/admin/analytics/categories')
-    return response.data // This returns { success: true, breakdown: {...} }
+    try {
+      console.log('Making request to /admin/analytics/categories')
+      const response = await api.get('/admin/analytics/categories')
+      // console.log('getCategoryBreakdown response:', response)
+      return response 
+    } catch (error) {
+      console.error('getCategoryBreakdown error:', error)
+      throw error
+    }
   },
 
   getOperatorPerformance: async () => {
-    const response = await api.get('/admin/analytics/operators')
-    return response.data // This returns { success: true, performance: {...} }
+    try {
+      console.log('Making request to /admin/analytics/operators')
+      const response = await api.get('/admin/analytics/operators')
+      // console.log('getOperatorPerformance response:', response)
+      return response 
+    } catch (error) {
+      console.error('getOperatorPerformance error:', error)
+      throw error
+    }
   },
 
   exportData: async (exportType, filters = {}) => {
-    const response = await api.get(`/admin/export/${exportType}`, {
-      params: filters
-    })
-    return response.data // This returns { success: true, data: {...} }
+    try {
+      console.log('Making request to /admin/export/' + exportType)
+      const response = await api.get(`/admin/export/${exportType}`, {
+        params: filters
+      })
+      console.log('exportData response:', response)
+      return response 
+    } catch (error) {
+      console.error('exportData error:', error)
+      throw error
+    }
   },
-
-  // Category Management
-  getAllCategories: async (isActive) => {
-    const response = await api.get('/admin/categories', {
-      params: { isActive }
-    })
-    return response.data // This returns { success: true, categories: [...] }
-  },
-
-  getCategoryById: async (id) => {
-    const response = await api.get(`/admin/categories/${id}`)
-    return response.data // This returns { success: true, category: {...} }
-  },
-
-  createCategory: async (categoryData) => {
-    const response = await api.post('/admin/categories', categoryData)
-    return response.data // This returns { success: true, message: "...", category: {...} }
-  },
-
-  updateCategory: async (id, categoryData) => {
-    const response = await api.put(`/admin/categories/${id}`, categoryData)
-    return response.data 
-  },
-
-  deleteCategory: async (id) => {
-    const response = await api.delete(`/admin/categories/${id}`)
-    return response.data 
-  },
-
-  toggleCategoryStatus: async (id) => {
-    const response = await api.patch(`/admin/categories/${id}/toggle-status`)
-    return response.data
-  }
 }
 
 export default adminService

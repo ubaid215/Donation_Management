@@ -209,7 +209,7 @@ const DonationChart = ({ data, type = "line", title = "" }) => {
           </div>
           <div className="flex flex-wrap gap-2">
             {data?.map((item, index) => (
-              <div key={item.purpose} className="flex items-center">
+              <div key={item.purpose} className="flex items-center">s
                 <div
                   className="w-2 h-2 rounded-full mr-1"
                   style={{

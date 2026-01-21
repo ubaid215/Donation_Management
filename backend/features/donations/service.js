@@ -7,54 +7,90 @@ export class DonationService {
     this.prisma = prisma;
   }
 
-async createDonation(donationData, operatorId, ipAddress = null) {
-  const donation = await this.prisma.$transaction(async (tx) => {
-    const newDonation = await tx.donation.create({
-      data: {
-        ...donationData,
-        operatorId,
-        date: new Date()
-      },
-      include: {
-        operator: {
-          select: {
-            name: true,
-            email: true
+  async createDonation(donationData, operatorId, ipAddress = null) {
+    const donation = await this.prisma.$transaction(async (tx) => {
+      // Find or create category
+      let categoryId = null;
+      if (donationData.purpose) {
+        let category = await tx.donationCategory.findFirst({
+          where: {
+            name: donationData.purpose,
+            isActive: true
+          }
+        });
+
+        if (!category) {
+          // Create category if it doesn't exist
+          category = await tx.donationCategory.create({
+            data: {
+              name: donationData.purpose,
+              description: `Donations for ${donationData.purpose}`,
+              isActive: true
+            }
+          });
+        }
+        categoryId = category.id;
+      }
+
+      const newDonation = await tx.donation.create({
+        data: {
+          donorName: donationData.donorName,
+          donorPhone: donationData.donorPhone,
+          amount: parseFloat(donationData.amount), // Convert to Decimal
+          purpose: donationData.purpose,
+          categoryId: categoryId,
+          paymentMethod: donationData.paymentMethod,
+          notes: donationData.notes,
+          operatorId: operatorId,
+          date: new Date()
+        },
+        include: {
+          operator: {
+            select: {
+              name: true,
+              email: true
+            }
+          },
+          category: {
+            select: {
+              id: true,
+              name: true
+            }
           }
         }
-      }
+      });
+
+      // Log the action
+      await createAuditLog({
+        action: 'DONATION_CREATED',
+        userId: operatorId,
+        userRole: 'OPERATOR',
+        entityType: 'DONATION',
+        entityId: newDonation.id,
+        description: `Donation of Rs${donationData.amount} created for ${donationData.donorName}`,
+        metadata: {
+          amount: donationData.amount,
+          purpose: donationData.purpose,
+          categoryId: categoryId,
+          paymentMethod: donationData.paymentMethod,
+          donorName: donationData.donorName,
+          donorPhone: donationData.donorPhone
+        },
+        ipAddress: ipAddress
+      });
+
+      return newDonation;
     });
 
-    // Log the action
-    await createAuditLog({
-      action: 'DONATION_CREATED',
-      userId: operatorId,
-      userRole: 'OPERATOR',
-      entityType: 'DONATION',
-      entityId: newDonation.id,
-      description: `Donation of Rs${donationData.amount} created for ${donationData.donorName}`,
-      metadata: {
-        amount: donationData.amount,
-        purpose: donationData.purpose,
-        paymentMethod: donationData.paymentMethod,
-        donorName: donationData.donorName,
-        donorPhone: donationData.donorPhone
-      },
-      ipAddress: ipAddress // Add IP from request
-    });
-
-    return newDonation;
-  });
-
-  this.sendDonationNotifications(donation);
-  return donation;
-}
+    this.sendDonationNotifications(donation);
+    return donation;
+  }
 
   async getOperatorDonations(operatorId, filters = {}) {
-    const { 
-      startDate, 
-      endDate, 
-      purpose, 
+    const {
+      startDate,
+      endDate,
+      purpose,
       paymentMethod,
       page = 1,
       limit = 20
@@ -170,7 +206,7 @@ async createDonation(donationData, operatorId, ipAddress = null) {
       }
     };
   }
-  
+
   async getDonationAnalytics(timeframe = 'month') {
     const now = new Date();
     let startDate = new Date(); // Fixed: create new instance
@@ -204,12 +240,12 @@ async createDonation(donationData, operatorId, ipAddress = null) {
     ] = await Promise.all([
       // Total donations count
       this.prisma.donation.count(),
-      
+
       // Total amount
       this.prisma.donation.aggregate({
         _sum: { amount: true }
       }),
-      
+
       // Today's donations
       this.prisma.donation.aggregate({
         where: {
@@ -220,7 +256,7 @@ async createDonation(donationData, operatorId, ipAddress = null) {
         _sum: { amount: true },
         _count: true
       }),
-      
+
       // Monthly donations (last 30 days)
       this.prisma.donation.aggregate({
         where: {
@@ -231,16 +267,16 @@ async createDonation(donationData, operatorId, ipAddress = null) {
         _sum: { amount: true },
         _count: true
       }),
-      
+
       // Donations per day (last 30 days)
       this.getDonationsByDay(startDate),
-      
+
       // Donations by purpose
       this.getDonationsByPurpose(startDate),
-      
+
       // Donations by operator
       this.getDonationsByOperator(startDate),
-      
+
       // Top donors
       this.getTopDonors()
     ]);
@@ -265,7 +301,7 @@ async createDonation(donationData, operatorId, ipAddress = null) {
   }
 
   async getDonationsByDay(startDate) {
-  const donations = await this.prisma.$queryRaw`
+    const donations = await this.prisma.$queryRaw`
     SELECT 
       DATE(date) as day,
       COUNT(*)::int as count,
@@ -276,34 +312,72 @@ async createDonation(donationData, operatorId, ipAddress = null) {
     ORDER BY day DESC
     LIMIT 30
   `;
-  
-  // Convert BigInt to Number and format the response
-  return donations.map(row => ({
-    day: row.day,
-    count: Number(row.count), // Convert BigInt to Number
-    total_amount: Number(row.total_amount) // Change to snake_case
-  }));
-}
+
+    // Convert BigInt to Number and format the response
+    return donations.map(row => ({
+      day: row.day,
+      count: Number(row.count), // Convert BigInt to Number
+      total_amount: Number(row.total_amount) // Change to snake_case
+    }));
+  }
 
   async getDonationsByPurpose(startDate) {
-    const donations = await this.prisma.donation.groupBy({
+    // Get all active categories with their donations
+    const categories = await this.prisma.donationCategory.findMany({
+      where: { isActive: true },
+      include: {
+        donations: {
+          where: {
+            date: { gte: startDate }
+          },
+          select: {
+            amount: true
+          }
+        }
+      }
+    });
+
+    // Calculate stats for each category
+    const categoryStats = categories
+      .map(cat => {
+        const totalAmount = cat.donations.reduce((sum, donation) =>
+          sum + parseFloat(donation.amount.toString()), 0
+        );
+        const count = cat.donations.length;
+
+        return {
+          purpose: cat.name,
+          count: count,
+          amount: totalAmount
+        };
+      })
+      .filter(item => item.count > 0) // Only show categories with donations
+      .sort((a, b) => b.amount - a.amount) // Sort by amount descending
+      .slice(0, 10); // Top 10
+
+    // Also get donations without categories (legacy data)
+    const uncategorizedDonations = await this.prisma.donation.groupBy({
       by: ['purpose'],
       where: {
-        date: { gte: startDate }
+        date: { gte: startDate },
+        categoryId: null
       },
       _count: true,
       _sum: { amount: true },
       orderBy: {
         _sum: { amount: 'desc' }
       },
-      take: 10
+      take: 5
     });
-    
-    return donations.map(item => ({
+
+    const uncategorizedStats = uncategorizedDonations.map(item => ({
       purpose: item.purpose,
       count: item._count,
-      amount: item._sum.amount || 0
+      amount: item._sum.amount ? parseFloat(item._sum.amount.toString()) : 0
     }));
+
+    // Combine both, with categorized first
+    return [...categoryStats, ...uncategorizedStats].slice(0, 10);
   }
 
   async getDonationsByOperator(startDate) {
@@ -318,16 +392,16 @@ async createDonation(donationData, operatorId, ipAddress = null) {
         _sum: { amount: 'desc' }
       }
     });
-    
+
     // Fetch operator names
     const operatorIds = donations.map(d => d.operatorId);
     const operators = await this.prisma.user.findMany({
       where: { id: { in: operatorIds } },
       select: { id: true, name: true }
     });
-    
+
     const operatorMap = new Map(operators.map(op => [op.id, op.name]));
-    
+
     return donations.map(item => ({
       operatorId: item.operatorId,
       operatorName: operatorMap.get(item.operatorId) || 'Unknown',
@@ -336,7 +410,7 @@ async createDonation(donationData, operatorId, ipAddress = null) {
     }));
   }
 
-  async getTopDonors(limit = 10) {
+  async getTopDonors(limit = 5) {
     const donors = await this.prisma.donation.groupBy({
       by: ['donorPhone', 'donorName'],
       _count: true,
@@ -346,7 +420,7 @@ async createDonation(donationData, operatorId, ipAddress = null) {
       },
       take: limit
     });
-    
+
     return donors.map(donor => ({
       phone: donor.donorPhone,
       name: donor.donorName,
@@ -358,7 +432,7 @@ async createDonation(donationData, operatorId, ipAddress = null) {
   async getActiveOperatorsCount(days = 7) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
-    
+
     return await this.prisma.user.count({
       where: {
         role: 'OPERATOR',

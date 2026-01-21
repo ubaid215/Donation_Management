@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react'
 import { 
   BarChart3, 
@@ -31,7 +32,7 @@ const Analytics = () => {
     try {
       setLoading(true)
       const data = await adminService.getDonationInsights(timeframe)
-      console.log('Insights data:', data) // Debug log
+      // console.log('Insights data:', data) 
       setInsights(data.insights)
     } catch (error) {
       console.error('Error loading insights:', error)
@@ -137,14 +138,14 @@ const Analytics = () => {
             </div>
           </div>
 
-          {/* Time Distribution */}
+          {/* Time Distribution - FIXED */}
           <div className="card p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Hourly Distribution</h3>
             {insights?.distribution?.byHour && insights.distribution.byHour.length > 0 ? (
               <DonationChart 
                 data={insights.distribution.byHour.map(item => ({
-                  operatorName: `${item.hour || item._id || 0}:00`,
-                  amount: item.amount || item.totalAmount || 0
+                  operatorName: `${item.hour || 0}:00`,
+                  amount: item.total_amount || 0  // FIXED: Use total_amount instead of amount
                 }))} 
                 type="bar" 
                 title=""
@@ -161,6 +162,7 @@ const Analytics = () => {
       {/* Distribution Tab */}
       {activeTab === 'distribution' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Payment Method Distribution - FIXED */}
           <div className="card p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Payment Method Distribution
@@ -169,8 +171,8 @@ const Analytics = () => {
               <div className="h-80">
                 <DonationChart 
                   data={insights.distribution.byPaymentMethod.map(item => ({
-                    purpose: item.paymentMethod || item._id || 'Unknown',
-                    amount: item.amount || item.totalAmount || 0
+                    purpose: item.method || 'Unknown',  // FIXED: Use method instead of paymentMethod
+                    amount: item.amount || 0
                   }))} 
                   type="pie" 
                   title=""
@@ -183,6 +185,7 @@ const Analytics = () => {
             )}
           </div>
           
+          {/* Purpose Distribution */}
           <div className="card p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
               Purpose Distribution
@@ -191,8 +194,8 @@ const Analytics = () => {
               <div className="h-80">
                 <DonationChart 
                   data={insights.distribution.byPurpose.map(item => ({
-                    operatorName: item.purpose || item._id || 'Unknown',
-                    amount: item.amount || item.totalAmount || 0
+                    operatorName: item.purpose || 'Unknown',
+                    amount: item.amount || 0
                   }))} 
                   type="bar" 
                   title=""

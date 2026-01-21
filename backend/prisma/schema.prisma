@@ -75,6 +75,8 @@ model DonationCategory {
   id            String        @id @default(uuid())
   name          String        @unique
   description   String?
+  icon          String?       @default("Tag")        
+  color         String?       @default("#3b82f6")    
   isActive      Boolean       @default(true)
   createdAt     DateTime      @default(now())
   

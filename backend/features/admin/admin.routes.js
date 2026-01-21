@@ -7,13 +7,6 @@ import {
   getCategoryBreakdown,
   getOperatorPerformance,
   exportData,
-  // Category management
-  getAllCategories,
-  getCategoryById,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-  toggleCategoryStatus
 } from './admin.controller.js';
 import { authMiddleware, adminOnlyMiddleware } from '../../middlewares/auth.js';
 
@@ -34,13 +27,5 @@ router.get('/analytics/operators', getOperatorPerformance);
 
 // Data export
 router.get('/export/:exportType', exportData);
-
-// Category Management
-router.get('/categories', getAllCategories);
-router.get('/categories/:id', getCategoryById);
-router.post('/categories', createCategory);
-router.put('/categories/:id', updateCategory);
-router.delete('/categories/:id', deleteCategory);
-router.patch('/categories/:id/toggle-status', toggleCategoryStatus);
 
 export default router;

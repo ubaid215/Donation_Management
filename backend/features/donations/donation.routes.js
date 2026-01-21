@@ -20,8 +20,16 @@ import {
 } from '../../middlewares/auth.js';
 import { auditReportExport } from '../../middlewares/audit.js';
 
+// Import category routes
+import categoryRoutes from './category.routes.js';
+
 const router = express.Router();
 
+// ===== DONATION CATEGORY ROUTES =====
+// Mount category routes at /categories
+router.use('/categories', categoryRoutes);
+
+// ===== DONATION ANALYTICS ROUTES =====
 // IMPORTANT: Analytics routes MUST come BEFORE /:id routes
 // to prevent "analytics" from being treated as an ID
 
@@ -39,6 +47,8 @@ router.get(
   adminOnlyMiddleware,
   getTopDonors
 );
+
+// ===== DONATION ROUTES =====
 
 // Admin route for all donations
 router.get(
@@ -70,7 +80,7 @@ router.get(
   getMyDonations
 );
 
-// This route MUST come AFTER all specific routes like /analytics/*
+
 router.get(
   '/:id',
   authMiddleware,

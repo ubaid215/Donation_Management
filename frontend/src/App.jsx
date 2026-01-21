@@ -2,7 +2,6 @@ import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { DonationProvider } from './context/DonationContext.jsx'
-import { AdminProvider } from './context/AdminContext.jsx' // Import AdminProvider
 import Layout from './components/Layout/Layout.jsx'
 import ProtectedRoute from './components/Layout/ProtectedRoute.jsx'
 
@@ -21,7 +20,6 @@ function App() {
   return (
     <AuthProvider>
       <DonationProvider>
-        <AdminProvider>
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
@@ -43,7 +41,6 @@ function App() {
             {/* 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AdminProvider>
       </DonationProvider>
     </AuthProvider>
   )

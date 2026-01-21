@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -5,54 +6,86 @@ import { z } from 'zod'
 import { PlusCircle, Loader2 } from 'lucide-react'
 import useDonations from '../../hooks/useDonations.js'
 
-const donationSchema = z.object({
-  donorName: z.string().min(2, 'Name must be at least 2 characters').max(100),
-  donorPhone: z.string().regex(/^[0-9]{10}$/, 'Valid 10-digit phone number required'),
-  amount: z.number().min(1, 'Amount must be at least RS 1'),
-  purpose: z.string().min(1, 'Purpose is required').max(200),
-  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'UPI', 'CHEQUE']),
-  notes: z.string().max(500).optional()
-})
+// Remove the hardcoded donationSchema and create a dynamic one
+const createDonationSchema = (categories = []) => {
+  // Extract category names for validation
+  const categoryNames = categories.map(cat => cat.name)
+  
+  return z.object({
+    donorName: z.string().min(2, 'Name must be at least 2 characters').max(100),
+    donorPhone: z.string().regex(/^[0-9]{10}$/, 'Valid 10-digit phone number required'),
+    amount: z.number().min(1, 'Amount must be at least RS 1'),
+    purpose: z.string().min(1, 'Purpose is required').max(200),
+    paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'UPI', 'CHEQUE']),
+    notes: z.string().max(500).optional(),
+    customPurpose: z.string().max(200).optional() // For custom purposes
+  })
+}
 
 const DonationForm = ({ onSubmitSuccess }) => {
-  const { createDonation } = useDonations()
+  const { createDonation, activeCategories } = useDonations()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showCustomPurpose, setShowCustomPurpose] = useState(false)
+
+  // Create dynamic schema based on active categories
+  const donationSchema = createDonationSchema(activeCategories)
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors }
   } = useForm({
     resolver: zodResolver(donationSchema),
     defaultValues: {
-      paymentMethod: 'CASH'
+      paymentMethod: 'CASH',
+      purpose: '',
+      customPurpose: ''
     }
   })
 
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const selectedPurpose = watch('purpose')
+
+  // Update showCustomPurpose when purpose changes
+  React.useEffect(() => {
+    if (selectedPurpose === 'CUSTOM') {
+      setShowCustomPurpose(true)
+      // Clear any previously selected purpose value
+      setValue('purpose', '')
+    } else if (selectedPurpose && selectedPurpose !== 'CUSTOM') {
+      setShowCustomPurpose(false)
+      // Clear custom purpose if a predefined one is selected
+      setValue('customPurpose', '')
+    }
+  }, [selectedPurpose, setValue])
+
   const onSubmit = async (data) => {
     setIsSubmitting(true)
-    const result = await createDonation(data)
+    
+    // Prepare the final data
+    const donationData = {
+      ...data,
+      // If custom purpose is used, use it instead of purpose
+      purpose: data.customPurpose || data.purpose
+    }
+    
+    // Remove customPurpose from the final data as it's not needed in the backend
+    delete donationData.customPurpose
+    
+    const result = await createDonation(donationData)
     setIsSubmitting(false)
     
     if (result.success) {
       reset()
+      setShowCustomPurpose(false)
       if (onSubmitSuccess) {
         onSubmitSuccess()
       }
     }
   }
-
-  const donationPurposes = [
-    'Temple Maintenance',
-    'Charity Programs',
-    'Educational Support',
-    'Medical Assistance',
-    'Festival Celebrations',
-    'Food Distribution',
-    'Infrastructure Development',
-    'Emergency Relief'
-  ]
 
   const paymentMethods = [
     { value: 'CASH', label: 'Cash' },
@@ -100,7 +133,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
                 type="tel"
                 {...register('donorPhone')}
                 className={`input pl-14 ${errors.donorPhone ? 'input-error' : ''}`}
-                placeholder="0300*******"
+                placeholder="300*******"
                 maxLength="10"
               />
             </div>
@@ -112,11 +145,11 @@ const DonationForm = ({ onSubmitSuccess }) => {
           {/* Amount */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Donation Amount (RS ) *
+              Donation Amount (RS) *
             </label>
             <div className="relative">
               <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                RS 
+                RS
               </div>
               <input
                 type="number"
@@ -131,7 +164,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
             )}
           </div>
           
-          {/* Purpose */}
+          {/* Purpose - Dynamic from context */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Donation Purpose *
@@ -139,17 +172,44 @@ const DonationForm = ({ onSubmitSuccess }) => {
             <select
               {...register('purpose')}
               className={`input ${errors.purpose ? 'input-error' : ''}`}
+              onChange={(e) => {
+                if (e.target.value === 'CUSTOM') {
+                  setShowCustomPurpose(true)
+                } else {
+                  setShowCustomPurpose(false)
+                }
+              }}
             >
               <option value="">Select Purpose</option>
-              {donationPurposes.map(purpose => (
-                <option key={purpose} value={purpose}>{purpose}</option>
+              {activeCategories.map(category => (
+                <option key={category.id} value={category.name}>
+                  {category.name}
+                </option>
               ))}
-              <option value="OTHER">Other</option>
+              <option value="CUSTOM">Other (Custom Purpose)</option>
             </select>
-            {errors.purpose && (
+            {errors.purpose && !showCustomPurpose && (
               <p className="mt-1 text-sm text-danger-600">{errors.purpose.message}</p>
             )}
           </div>
+          
+          {/* Custom Purpose Input - Shown when "Other" is selected */}
+          {showCustomPurpose && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Custom Purpose *
+              </label>
+              <input
+                type="text"
+                {...register('customPurpose')}
+                className={`input ${errors.customPurpose ? 'input-error' : ''}`}
+                placeholder="Enter custom donation purpose"
+              />
+              {errors.customPurpose && (
+                <p className="mt-1 text-sm text-danger-600">{errors.customPurpose.message}</p>
+              )}
+            </div>
+          )}
           
           {/* Payment Method */}
           <div>

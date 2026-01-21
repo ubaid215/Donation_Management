@@ -1,6 +1,7 @@
 import prisma from '../../config/prisma.js';
 import { createAuditLog } from '../../utils/auditLogger.js';
-import { sendEmailNotification, sendWhatsAppNotification } from '../../utils/notification.js';
+import { sendWhatsAppNotification } from '../../utils/notification.js';
+import { sendDonationReceipt } from '../../utils/email.js';
 
 export class DonationService {
   constructor() {
@@ -36,13 +37,17 @@ export class DonationService {
         data: {
           donorName: donationData.donorName,
           donorPhone: donationData.donorPhone,
+          donorEmail: donationData.donorEmail || null, // NEW: Add email field
           amount: parseFloat(donationData.amount),
           purpose: donationData.purpose,
           categoryId: categoryId,
           paymentMethod: donationData.paymentMethod,
           notes: donationData.notes,
           operatorId: operatorId,
-          date: new Date()
+          date: new Date(),
+          emailSent: false, // NEW: Track email status
+          emailSentAt: null,
+          emailError: null
         },
         include: {
           operator: {
@@ -74,7 +79,8 @@ export class DonationService {
           categoryId: categoryId,
           paymentMethod: donationData.paymentMethod,
           donorName: donationData.donorName,
-          donorPhone: donationData.donorPhone
+          donorPhone: donationData.donorPhone,
+          donorEmail: donationData.donorEmail || null
         },
         ipAddress: ipAddress
       });
@@ -82,11 +88,251 @@ export class DonationService {
       return newDonation;
     });
 
+    // Send notifications (non-blocking)
     this.sendDonationNotifications(donation);
+
+    // NEW: Automatically send email receipt if email is provided
+    if (donation.donorEmail) {
+      this.sendReceiptEmailAsync(donation.id, operatorId, ipAddress);
+    }
+
     return donation;
   }
 
-  // NEW: Search donors by name or phone
+  // NEW: Send receipt email (main method)
+  async sendReceiptEmail(donationId, userId, ipAddress = null, customMessage = '') {
+    try {
+      const donation = await this.prisma.donation.findUnique({
+        where: { id: donationId },
+        include: {
+          operator: {
+            select: {
+              name: true,
+              email: true
+            }
+          },
+          category: {
+            select: {
+              name: true
+            }
+          }
+        }
+      });
+
+      if (!donation) {
+        throw new Error('Donation not found');
+      }
+
+      if (!donation.donorEmail) {
+        throw new Error('No email address provided for this donor');
+      }
+
+      // Send the email
+      const emailResult = await sendDonationReceipt({
+        to: donation.donorEmail,
+        donationData: {
+          id: donation.id,
+          donorName: donation.donorName,
+          amount: parseFloat(donation.amount.toString()),
+          purpose: donation.purpose,
+          paymentMethod: donation.paymentMethod,
+          date: donation.date,
+          receiptNumber: donation.receiptNumber || donation.id.substring(0, 8).toUpperCase()
+        },
+        customMessage
+      });
+
+      // Update donation record
+      await this.prisma.donation.update({
+        where: { id: donationId },
+        data: {
+          emailSent: true,
+          emailSentAt: new Date(),
+          emailError: null
+        }
+      });
+
+      // Create audit log
+      await createAuditLog({
+        action: 'EMAIL_SENT',
+        userId: userId,
+        userRole: 'ADMIN',
+        entityType: 'DONATION',
+        entityId: donationId,
+        description: `Receipt email sent to ${donation.donorEmail}`,
+        metadata: {
+          recipient: donation.donorEmail,
+          donorName: donation.donorName,
+          amount: donation.amount,
+          messageId: emailResult.messageId,
+          customMessage: customMessage || null
+        },
+        ipAddress
+      });
+
+      return {
+        success: true,
+        emailSent: true,
+        recipient: donation.donorEmail,
+        messageId: emailResult.messageId,
+        timestamp: emailResult.timestamp
+      };
+    } catch (error) {
+      // Log the error in the database
+      await this.prisma.donation.update({
+        where: { id: donationId },
+        data: {
+          emailSent: false,
+          emailError: error.message
+        }
+      }).catch(err => console.error('Failed to update email error:', err));
+
+      // Create audit log for failure
+      await createAuditLog({
+        action: 'EMAIL_FAILED',
+        userId: userId,
+        userRole: 'ADMIN',
+        entityType: 'DONATION',
+        entityId: donationId,
+        description: `Failed to send receipt email: ${error.message}`,
+        metadata: {
+          error: error.message,
+          stack: error.stack
+        },
+        ipAddress
+      }).catch(err => console.error('Failed to create audit log:', err));
+
+      throw error;
+    }
+  }
+
+  // NEW: Async email sending (non-blocking for donation creation)
+  async sendReceiptEmailAsync(donationId, userId, ipAddress = null) {
+    try {
+      await this.sendReceiptEmail(donationId, userId, ipAddress);
+    } catch (error) {
+      console.error('Async email sending failed:', error);
+      // Don't throw - this is a background operation
+    }
+  }
+
+  // NEW: Resend receipt email
+  async resendReceiptEmail(donationId, userId, ipAddress = null, customMessage = '') {
+    // Same as sendReceiptEmail, just logs as RESEND action
+    try {
+      const donation = await this.prisma.donation.findUnique({
+        where: { id: donationId },
+        include: {
+          operator: {
+            select: {
+              name: true,
+              email: true
+            }
+          }
+        }
+      });
+
+      if (!donation) {
+        throw new Error('Donation not found');
+      }
+
+      if (!donation.donorEmail) {
+        throw new Error('No email address provided for this donor');
+      }
+
+      const emailResult = await sendDonationReceipt({
+        to: donation.donorEmail,
+        donationData: {
+          id: donation.id,
+          donorName: donation.donorName,
+          amount: parseFloat(donation.amount.toString()),
+          purpose: donation.purpose,
+          paymentMethod: donation.paymentMethod,
+          date: donation.date,
+          receiptNumber: donation.receiptNumber || donation.id.substring(0, 8).toUpperCase()
+        },
+        customMessage
+      });
+
+      await this.prisma.donation.update({
+        where: { id: donationId },
+        data: {
+          emailSent: true,
+          emailSentAt: new Date(),
+          emailError: null
+        }
+      });
+
+      await createAuditLog({
+        action: 'EMAIL_RESENT',
+        userId: userId,
+        userRole: 'ADMIN',
+        entityType: 'DONATION',
+        entityId: donationId,
+        description: `Receipt email re-sent to ${donation.donorEmail}`,
+        metadata: {
+          recipient: donation.donorEmail,
+          donorName: donation.donorName,
+          messageId: emailResult.messageId,
+          customMessage: customMessage || null
+        },
+        ipAddress
+      });
+
+      return {
+        success: true,
+        emailSent: true,
+        recipient: donation.donorEmail,
+        messageId: emailResult.messageId,
+        timestamp: emailResult.timestamp
+      };
+    } catch (error) {
+      await this.prisma.donation.update({
+        where: { id: donationId },
+        data: {
+          emailError: error.message
+        }
+      }).catch(err => console.error('Failed to update email error:', err));
+
+      throw error;
+    }
+  }
+
+  // NEW: Get single donation (needed for controller)
+  async getDonation(donationId, user) {
+    const donation = await this.prisma.donation.findUnique({
+      where: { id: donationId },
+      include: {
+        operator: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true
+          }
+        }
+      }
+    });
+
+    if (!donation) {
+      throw new Error('Donation not found');
+    }
+
+    // Operators can only view their own donations
+    if (user.role === 'OPERATOR' && donation.operatorId !== user.id) {
+      throw new Error('Access denied');
+    }
+
+    return donation;
+  }
+
+  // Search donors by name or phone
   async searchDonors(searchQuery, limit = 10) {
     if (!searchQuery || searchQuery.trim().length < 2) {
       return [];
@@ -94,7 +340,6 @@ export class DonationService {
 
     const search = searchQuery.trim();
 
-    // Get unique donors based on phone number or name
     const donors = await this.prisma.donation.groupBy({
       by: ['donorPhone', 'donorName'],
       where: {
@@ -107,7 +352,7 @@ export class DonationService {
       _sum: { amount: true },
       _max: { date: true },
       orderBy: {
-        _max: { date: 'desc' } // Most recent donors first
+        _max: { date: 'desc' }
       },
       take: limit
     });
@@ -121,13 +366,12 @@ export class DonationService {
     }));
   }
 
-  // NEW: Get donor details by phone number
+  // Get donor details by phone number
   async getDonorByPhone(phone) {
     if (!phone || phone.trim().length === 0) {
       return null;
     }
 
-    // Get the most recent donation for this phone number
     const latestDonation = await this.prisma.donation.findFirst({
       where: {
         donorPhone: phone.trim()
@@ -138,6 +382,7 @@ export class DonationService {
       select: {
         donorName: true,
         donorPhone: true,
+        donorEmail: true, // NEW: Include email
         purpose: true,
         paymentMethod: true
       }
@@ -147,7 +392,6 @@ export class DonationService {
       return null;
     }
 
-    // Get donation history for this donor
     const [donationCount, totalAmount, donations] = await Promise.all([
       this.prisma.donation.count({
         where: { donorPhone: phone.trim() }
@@ -173,6 +417,7 @@ export class DonationService {
     return {
       donorName: latestDonation.donorName,
       donorPhone: latestDonation.donorPhone,
+      donorEmail: latestDonation.donorEmail, // NEW: Return email
       lastPurpose: latestDonation.purpose,
       lastPaymentMethod: latestDonation.paymentMethod,
       totalDonations: donationCount,
@@ -187,7 +432,7 @@ export class DonationService {
     };
   }
 
-  // NEW: Get donor suggestions (autocomplete)
+  // Get donor suggestions (autocomplete)
   async getDonorSuggestions(query, limit = 5) {
     if (!query || query.trim().length < 2) {
       return [];
@@ -195,7 +440,6 @@ export class DonationService {
 
     const search = query.trim();
 
-    // Get unique donor names and phones
     const suggestions = await this.prisma.donation.groupBy({
       by: ['donorPhone', 'donorName'],
       where: {
@@ -250,11 +494,14 @@ export class DonationService {
           id: true,
           donorName: true,
           donorPhone: true,
+          donorEmail: true, // NEW: Include email
           amount: true,
           purpose: true,
           paymentMethod: true,
           date: true,
-          notes: true
+          notes: true,
+          emailSent: true, // NEW: Email status
+          emailSentAt: true
         }
       }),
       this.prisma.donation.count({ where })
@@ -304,7 +551,8 @@ export class DonationService {
       ...(search && {
         OR: [
           { donorName: { contains: search, mode: 'insensitive' } },
-          { donorPhone: { contains: search, mode: 'insensitive' } }
+          { donorPhone: { contains: search, mode: 'insensitive' } },
+          { donorEmail: { contains: search, mode: 'insensitive' } } // NEW: Search by email
         ]
       })
     };
@@ -553,32 +801,25 @@ export class DonationService {
     });
   }
 
-  async sendDonationNotifications(donation) {
-    try {
-      if (process.env.ADMIN_EMAIL) {
-        await sendEmailNotification({
-          to: process.env.ADMIN_EMAIL,
-          subject: `New Donation Received - ₹${donation.amount}`,
-          html: `
-            <h2>New Donation Received</h2>
-            <p><strong>Donor:</strong> ${donation.donorName}</p>
-            <p><strong>Amount:</strong> Rs ${donation.amount}</p>
-            <p><strong>Purpose:</strong> ${donation.purpose}</p>
-            <p><strong>Payment Method:</strong> ${donation.paymentMethod}</p>
-            <p><strong>Operator:</strong> ${donation.operator.name}</p>
-            <p><strong>Date:</strong> ${new Date(donation.date).toLocaleString()}</p>
-          `
-        });
-      }
-
-      if (donation.donorPhone) {
-        await sendWhatsAppNotification({
-          to: donation.donorPhone,
-          message: `Thank you for your donation of Rs ${donation.amount} for ${donation.purpose}. Your contribution is greatly appreciated.`
-        });
-      }
-    } catch (error) {
-      console.error('Notification sending failed:', error);
+ async sendDonationNotifications(donation) {
+  try {
+    // Only send WhatsApp if credentials are configured
+    if (process.env.WHATSAPP_ACCESS_TOKEN && 
+        process.env.WHATSAPP_ACCESS_TOKEN !== 'your-whatsapp-bearer-token' &&
+        donation.donorPhone) {
+      
+      await sendWhatsAppNotification({
+        to: donation.donorPhone,
+        message: `Thank you for your donation of Rs ${donation.amount} for ${donation.purpose}. Your contribution is greatly appreciated.`
+      });
+      
+      console.log('✅ WhatsApp notification sent');
+    } else {
+      console.log('ℹ️ WhatsApp disabled - no valid credentials configured');
     }
+  } catch (error) {
+    // Don't throw - just log the error so email still works
+    console.error('WhatsApp notification failed (non-critical):', error.message);
   }
+}
 }

@@ -8,14 +8,20 @@ import {
   getTopDonors,
   searchDonors,
   getDonorByPhone,
-  getDonorSuggestions
+  getDonorSuggestions,
+  // NEW: Add email-related controller functions
+  sendDonationReceiptEmail,
+  resendDonationReceiptEmail,
+  getDonationEmailStatus
 } from './donation.controller.js';
 import { 
   createDonationSchema, 
   donationFilterSchema,
   donationIdSchema,
   donorSearchSchema,
-  donorPhoneSchema
+  donorPhoneSchema,
+  // NEW: Import email validation schemas
+  sendEmailSchema
 } from './validation.js';
 import { validateRequest } from '../../middlewares/validation.js';
 import { 
@@ -63,6 +69,39 @@ router.get(
   donorPhoneSchema,
   validateRequest,
   getDonorByPhone
+);
+
+// ===== EMAIL-RELATED ROUTES =====
+// These should come BEFORE /:id routes to avoid conflicts
+
+// Send receipt email for a donation (admin only)
+router.post(
+  '/:id/send-receipt',
+  authMiddleware,
+  adminOnlyMiddleware,
+  sendEmailSchema,
+  validateRequest,
+  sendDonationReceiptEmail
+);
+
+// Resend receipt email (admin only)
+router.post(
+  '/:id/resend-receipt',
+  authMiddleware,
+  adminOnlyMiddleware,
+  sendEmailSchema,
+  validateRequest,
+  resendDonationReceiptEmail
+);
+
+// Get email status for a donation (admin only)
+router.get(
+  '/:id/email-status',
+  authMiddleware,
+  adminOnlyMiddleware,
+  donationIdSchema,
+  validateRequest,
+  getDonationEmailStatus
 );
 
 // ===== DONATION ANALYTICS ROUTES =====
@@ -115,6 +154,9 @@ router.get(
   validateRequest,
   getMyDonations
 );
+
+// ===== SINGLE DONATION ROUTES =====
+// This should be LAST to avoid route conflicts
 
 router.get(
   '/:id',

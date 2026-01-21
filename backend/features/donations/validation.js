@@ -9,7 +9,15 @@ export const createDonationSchema = [
   body('donorPhone')
     .trim()
     .notEmpty().withMessage('Phone number is required')
-    .matches(/^[0-9]{10}$/).withMessage('Valid 10-digit phone number required'),
+    .matches(/^[0-9]{10,15}$/).withMessage('Valid 10-15 digit phone number required'),
+  
+  // NEW: Email validation (optional field)
+  body('donorEmail')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isEmail().withMessage('Invalid email address')
+    .normalizeEmail()
+    .isLength({ max: 100 }).withMessage('Email too long'),
   
   body('amount')
     .isFloat({ min: 1 }).withMessage('Amount must be at least Rs 1')
@@ -32,6 +40,17 @@ export const createDonationSchema = [
   body('categoryId')
     .optional()
     .isUUID().withMessage('Invalid category ID')
+];
+
+// Email sending validation schema
+export const sendEmailSchema = [
+  param('id')
+    .isUUID().withMessage('Invalid donation ID'),
+  
+  body('customMessage')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 }).withMessage('Custom message too long')
 ];
 
 export const donationFilterSchema = [
@@ -79,8 +98,7 @@ export const donationIdSchema = [
     .isUUID().withMessage('Invalid donation ID')
 ];
 
-// ===== NEW: DONOR SEARCH VALIDATION SCHEMAS =====
-
+// Donor search validation schemas
 export const donorSearchSchema = [
   query('q')
     .optional()
@@ -103,4 +121,3 @@ export const donorPhoneSchema = [
     .matches(/^[0-9+\-\s()]{10,15}$/)
     .withMessage('Invalid phone number format (10-15 characters, can include +, -, spaces, parentheses)')
 ];
-

@@ -104,6 +104,80 @@ export const getDonorByPhone = asyncHandler(async (req, res) => {
   });
 });
 
+
+export const sendDonationReceiptEmail = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { customMessage } = req.body;
+
+  const result = await donationService.sendReceiptEmail(
+    id,
+    req.user.id,
+    req.ip,
+    customMessage
+  );
+
+  res.json({
+    success: true,
+    message: 'Receipt email sent successfully',
+    ...result
+  });
+});
+
+export const resendDonationReceiptEmail = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { customMessage } = req.body;
+
+  const result = await donationService.resendReceiptEmail(
+    id,
+    req.user.id,
+    req.ip,
+    customMessage
+  );
+
+  res.json({
+    success: true,
+    message: 'Receipt email re-sent successfully',
+    ...result
+  });
+});
+
+export const getDonationEmailStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const donation = await prisma.donation.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      donorName: true,
+      donorEmail: true,
+      emailSent: true,
+      emailSentAt: true,
+      emailError: true,
+      amount: true,
+      purpose: true
+    }
+  });
+
+  if (!donation) {
+    return res.status(404).json({
+      success: false,
+      error: 'Donation not found'
+    });
+  }
+
+  res.json({
+    success: true,
+    emailStatus: {
+      sent: donation.emailSent,
+      sentAt: donation.emailSentAt,
+      recipient: donation.donorEmail,
+      recipientName: donation.donorName,
+      error: donation.emailError,
+      lastUpdated: donation.emailSentAt || donation.updatedAt
+    }
+  });
+});
+
 export const getDonorSuggestions = asyncHandler(async (req, res) => {
   const { q, limit } = req.query;
 

@@ -124,4 +124,4 @@ export const getLogStats = async (filters = {}) => {
     console.error('Error fetching audit log stats:', error);
     throw error;
   }
-};
+}; 

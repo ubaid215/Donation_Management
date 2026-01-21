@@ -3,15 +3,20 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { PlusCircle, Loader2, Search, User, Phone, DollarSign, X } from 'lucide-react'
+import { PlusCircle, Loader2, Search, User, Phone, DollarSign, X, Mail, Send } from 'lucide-react'
 import useDonations from '../../hooks/useDonations.js'
 import toast from 'react-hot-toast'
 
-// Create dynamic validation schema
+// Create dynamic validation schema with email
 const createDonationSchema = (categories = []) => {
   return z.object({
     donorName: z.string().min(2, 'Name must be at least 2 characters').max(100),
     donorPhone: z.string().regex(/^[0-9]{10}$/, 'Valid 10-digit phone number required'),
+    donorEmail: z.string()
+      .email('Invalid email address')
+      .max(100, 'Email too long')
+      .optional()
+      .or(z.literal('')),
     amount: z.number().min(1, 'Amount must be at least RS 1'),
     purpose: z.string().min(1, 'Purpose is required').max(200),
     paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'UPI', 'CHEQUE']),
@@ -56,11 +61,13 @@ const DonationForm = ({ onSubmitSuccess }) => {
     defaultValues: {
       paymentMethod: 'CASH',
       purpose: '',
-      customPurpose: ''
+      customPurpose: '',
+      donorEmail: ''
     }
   })
 
   const selectedPurpose = watch('purpose')
+  const donorEmail = watch('donorEmail')
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -134,6 +141,11 @@ const DonationForm = ({ onSubmitSuccess }) => {
         setValue('donorName', donor.donorName)
         setValue('donorPhone', donor.donorPhone.replace(/^0/, '')) // Remove leading 0 for +92
         
+        // NEW: Set email if available
+        if (donor.donorEmail) {
+          setValue('donorEmail', donor.donorEmail)
+        }
+        
         // Set last used purpose and payment method if available
         if (donor.lastPurpose) {
           // Check if it's in active categories
@@ -169,6 +181,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
     setSearchQuery('')
     setValue('donorName', '')
     setValue('donorPhone', '')
+    setValue('donorEmail', '')
   }
 
   const onSubmit = async (data) => {
@@ -178,7 +191,9 @@ const DonationForm = ({ onSubmitSuccess }) => {
     const donationData = {
       ...data,
       donorPhone: data.donorPhone.startsWith('0') ? data.donorPhone : '0' + data.donorPhone,
-      purpose: data.customPurpose || data.purpose
+      purpose: data.customPurpose || data.purpose,
+      // Only include email if it's provided and valid
+      donorEmail: data.donorEmail && data.donorEmail.trim() !== '' ? data.donorEmail.trim() : undefined
     }
     
     delete donationData.customPurpose
@@ -190,12 +205,14 @@ const DonationForm = ({ onSubmitSuccess }) => {
       // Keep donor info for quick re-entry
       const currentDonorName = data.donorName
       const currentDonorPhone = data.donorPhone
+      const currentDonorEmail = data.donorEmail
       const currentPurpose = data.customPurpose || data.purpose
       const currentPaymentMethod = data.paymentMethod
       
       reset({
         donorName: currentDonorName,
         donorPhone: currentDonorPhone,
+        donorEmail: currentDonorEmail,
         purpose: data.purpose,
         customPurpose: data.customPurpose,
         paymentMethod: currentPaymentMethod,
@@ -203,7 +220,14 @@ const DonationForm = ({ onSubmitSuccess }) => {
         notes: ''
       })
       
-      toast.success('💡 Donor info kept for quick re-entry')
+      // Show appropriate success message based on email
+      if (data.donorEmail && data.donorEmail.trim() !== '') {
+        toast.success('✅ Donation recorded! Email receipt will be sent automatically.')
+      } else {
+        toast.success('✅ Donation recorded! WhatsApp notification sent.')
+      }
+      
+      toast.success('💡 Donor info kept for quick re-entry', { duration: 3000 })
       
       if (onSubmitSuccess) {
         onSubmitSuccess()
@@ -346,6 +370,41 @@ const DonationForm = ({ onSubmitSuccess }) => {
               <p className="mt-1 text-sm text-danger-600">{errors.donorPhone.message}</p>
             )}
           </div>
+
+          {/* NEW: Email Address */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                Email Address (Optional)
+                {donorEmail && donorEmail.trim() !== '' && (
+                  <span className="text-xs text-green-600 font-normal flex items-center gap-1">
+                    <Send className="w-3 h-3" />
+                    Receipt will be emailed
+                  </span>
+                )}
+              </div>
+            </label>
+            <input
+              type="email"
+              {...register('donorEmail')}
+              className={`input ${errors.donorEmail ? 'input-error' : ''}`}
+              placeholder="donor@example.com (optional)"
+            />
+            {errors.donorEmail && (
+              <p className="mt-1 text-sm text-danger-600">{errors.donorEmail.message}</p>
+            )}
+            {!errors.donorEmail && donorEmail && donorEmail.trim() !== '' && (
+              <p className="mt-1 text-sm text-green-600 flex items-center gap-1">
+                ✓ Beautiful email receipt will be sent automatically
+              </p>
+            )}
+            {!donorEmail || donorEmail.trim() === '' && (
+              <p className="mt-1 text-sm text-gray-500">
+                💬 WhatsApp notification will be sent instead
+              </p>
+            )}
+          </div>
           
           {/* Amount */}
           <div>
@@ -461,12 +520,23 @@ const DonationForm = ({ onSubmitSuccess }) => {
               </>
             )}
           </button>
-          <p className="mt-3 text-sm text-gray-500">
-            * WhatsApp confirmation will be sent to donor automatically
-          </p>
-          <p className="mt-1 text-sm text-blue-600">
-            💡 Tip: Search for existing donors to auto-fill their info. After saving, donor details are kept for quick re-entry.
-          </p>
+          
+          {/* Dynamic notification info */}
+          <div className="mt-3 space-y-1">
+            {donorEmail && donorEmail.trim() !== '' ? (
+              <p className="text-sm text-green-600 flex items-center gap-1">
+                <Mail className="w-4 h-4" />
+                Email receipt will be sent to: <strong>{donorEmail}</strong>
+              </p>
+            ) : (
+              <p className="text-sm text-blue-600">
+                💬 WhatsApp confirmation will be sent to donor
+              </p>
+            )}
+            <p className="text-sm text-gray-500">
+              💡 Tip: Search for existing donors to auto-fill their info. After saving, donor details are kept for quick re-entry.
+            </p>
+          </div>
         </div>
       </form>
     </div>

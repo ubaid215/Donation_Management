@@ -41,6 +41,10 @@ export const DonationProvider = ({ children }) => {
   const [donorSearchResults, setDonorSearchResults] = useState([])
   const [donorSearchLoading, setDonorSearchLoading] = useState(false)
 
+  // ===== EMAIL STATE =====
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailStatus, setEmailStatus] = useState({})
+
   // ===== DONATION OPERATIONS =====
   const fetchDonations = async (newFilters = {}) => {
     try {
@@ -85,6 +89,18 @@ export const DonationProvider = ({ children }) => {
           toast.success('WhatsApp confirmation sent to donor')
         }
         
+        // Send email receipt if requested and email is provided
+        if (donationData.sendEmail && donationData.donorEmail) {
+          toast.promise(
+            sendReceiptEmail(result.donation.id),
+            {
+              loading: 'Sending email receipt...',
+              success: 'Email receipt sent successfully!',
+              error: 'Failed to send email receipt'
+            }
+          )
+        }
+        
         return { success: true, donation: result.donation }
       }
       
@@ -103,9 +119,81 @@ export const DonationProvider = ({ children }) => {
     fetchDonations({})
   }
 
-  // ===== DONOR SEARCH OPERATIONS =====
+  // ===== EMAIL OPERATIONS =====
+  const sendReceiptEmail = async (donationId, customMessage = '') => {
+    try {
+      setEmailSending(true)
+      const result = await donationService.sendReceiptEmail(donationId, customMessage)
+      
+      if (result.success) {
+        // Update donation in list to reflect email status
+        setDonations(prev =>
+          prev.map(donation =>
+            donation.id === donationId
+              ? {
+                  ...donation,
+                  emailSent: true,
+                  emailSentAt: new Date().toISOString()
+                }
+              : donation
+          )
+        )
+        
+        toast.success('Receipt email sent successfully')
+        return { success: true, data: result }
+      }
+      
+      return { success: false, error: 'Failed to send email' }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to send email'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setEmailSending(false)
+    }
+  }
 
-  // Search donors with full details
+  const resendReceiptEmail = async (donationId, customMessage = '') => {
+    try {
+      setEmailSending(true)
+      const result = await donationService.resendReceiptEmail(donationId, customMessage)
+      
+      if (result.success) {
+        toast.success('Receipt email re-sent successfully')
+        return { success: true, data: result }
+      }
+      
+      return { success: false, error: 'Failed to resend email' }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to resend email'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setEmailSending(false)
+    }
+  }
+
+  const getEmailStatus = async (donationId) => {
+    try {
+      const result = await donationService.getEmailStatus(donationId)
+      
+      if (result.success) {
+        setEmailStatus(prev => ({
+          ...prev,
+          [donationId]: result.emailStatus
+        }))
+        return { success: true, status: result.emailStatus }
+      }
+      
+      return { success: false, error: 'Failed to get email status' }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to get email status'
+      console.error(message)
+      return { success: false, error: message }
+    }
+  }
+
+  // ===== DONOR SEARCH OPERATIONS =====
   const searchDonors = async (query, limit = 10) => {
     if (!query || query.trim().length < 2) {
       setDonorSearchResults([])
@@ -130,7 +218,6 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Get donor suggestions for autocomplete
   const getDonorSuggestions = async (query, limit = 5) => {
     if (!query || query.trim().length < 2) {
       return []
@@ -145,7 +232,6 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Get donor by phone number
   const getDonorByPhone = async (phone) => {
     if (!phone || phone.trim().length === 0) {
       return null
@@ -155,7 +241,6 @@ export const DonationProvider = ({ children }) => {
       const result = await donationService.getDonorByPhone(phone)
       return result.success ? result.donor : null
     } catch (error) {
-      // Don't show error toast for 404 (donor not found)
       if (error.response?.status !== 404) {
         console.error('Failed to get donor by phone:', error)
       }
@@ -163,14 +248,11 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Clear donor search results
   const clearDonorSearch = () => {
     setDonorSearchResults([])
   }
 
   // ===== CATEGORY OPERATIONS =====
-  
-  // Fetch all categories with filters
   const fetchCategories = async (categoryFilters = {}) => {
     try {
       setCategoriesLoading(true)
@@ -184,11 +266,9 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Fetch only active categories (for dropdowns)
   const fetchActiveCategories = async () => {
     try {
       const result = await donationService.getActiveCategories()
-      // Handle the response structure
       if (result.success) {
         setActiveCategories(result.categories || [])
       } else if (result.data && result.data.success) {
@@ -202,7 +282,6 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Create new category
   const createCategory = async (categoryData) => {
     try {
       setCategoriesLoading(true)
@@ -210,7 +289,6 @@ export const DonationProvider = ({ children }) => {
       
       setCategories(prev => [result.category, ...prev])
       
-      // If category is active, add to active categories list
       if (result.category.isActive) {
         setActiveCategories(prev => [...prev, result.category])
       }
@@ -226,18 +304,15 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Update category
   const updateCategory = async (id, categoryData) => {
     try {
       setCategoriesLoading(true)
       const result = await donationService.updateCategory(id, categoryData)
       
-      // Update in categories list
       setCategories(prev =>
         prev.map(cat => (cat.id === id ? result.category : cat))
       )
       
-      // Update in active categories list
       if (result.category.isActive) {
         setActiveCategories(prev => {
           const exists = prev.find(cat => cat.id === id)
@@ -262,7 +337,6 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Delete category
   const deleteCategory = async (id) => {
     try {
       setCategoriesLoading(true)
@@ -282,17 +356,14 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Toggle category status
   const toggleCategoryStatus = async (id) => {
     try {
       const result = await donationService.toggleCategoryStatus(id)
       
-      // Update in categories list
       setCategories(prev =>
         prev.map(cat => (cat.id === id ? result.category : cat))
       )
       
-      // Update active categories list
       if (result.category.isActive) {
         setActiveCategories(prev => [...prev, result.category])
       } else {
@@ -310,7 +381,6 @@ export const DonationProvider = ({ children }) => {
     }
   }
 
-  // Load active categories on mount (for form dropdowns)
   useEffect(() => {
     fetchActiveCategories()
   }, [])
@@ -326,6 +396,13 @@ export const DonationProvider = ({ children }) => {
     createDonation,
     setFilters,
     clearFilters,
+    
+    // Email state & methods
+    emailSending,
+    emailStatus,
+    sendReceiptEmail,
+    resendReceiptEmail,
+    getEmailStatus,
     
     // Donor search state & methods
     donorSearchResults,

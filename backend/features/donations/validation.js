@@ -12,7 +12,7 @@ export const createDonationSchema = [
     .matches(/^[0-9]{10}$/).withMessage('Valid 10-digit phone number required'),
   
   body('amount')
-    .isFloat({ min: 1 }).withMessage('Amount must be at least ₹1')
+    .isFloat({ min: 1 }).withMessage('Amount must be at least Rs 1')
     .toFloat(),
   
   body('purpose')
@@ -78,3 +78,29 @@ export const donationIdSchema = [
   param('id')
     .isUUID().withMessage('Invalid donation ID')
 ];
+
+// ===== NEW: DONOR SEARCH VALIDATION SCHEMAS =====
+
+export const donorSearchSchema = [
+  query('q')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Search query must be between 2 and 100 characters'),
+  
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage('Limit must be between 1 and 50')
+    .toInt()
+];
+
+export const donorPhoneSchema = [
+  param('phone')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required')
+    .matches(/^[0-9+\-\s()]{10,15}$/)
+    .withMessage('Invalid phone number format (10-15 characters, can include +, -, spaces, parentheses)')
+];
+

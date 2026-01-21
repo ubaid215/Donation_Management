@@ -5,12 +5,17 @@ import {
   getDonation,
   getAllDonations,
   getAnalytics,
-  getTopDonors
+  getTopDonors,
+  searchDonors,
+  getDonorByPhone,
+  getDonorSuggestions
 } from './donation.controller.js';
 import { 
   createDonationSchema, 
   donationFilterSchema,
-  donationIdSchema 
+  donationIdSchema,
+  donorSearchSchema,
+  donorPhoneSchema
 } from './validation.js';
 import { validateRequest } from '../../middlewares/validation.js';
 import { 
@@ -28,6 +33,37 @@ const router = express.Router();
 // ===== DONATION CATEGORY ROUTES =====
 // Mount category routes at /categories
 router.use('/categories', categoryRoutes);
+
+// ===== DONOR SEARCH ROUTES =====
+// IMPORTANT: These MUST come BEFORE /:id routes to prevent route conflicts
+// Accessible by both operators and admins
+
+router.get(
+  '/donors/search',
+  authMiddleware,
+  operatorScopeMiddleware,
+  donorSearchSchema,
+  validateRequest,
+  searchDonors
+);
+
+router.get(
+  '/donors/suggestions',
+  authMiddleware,
+  operatorScopeMiddleware,
+  donorSearchSchema,
+  validateRequest,
+  getDonorSuggestions
+);
+
+router.get(
+  '/donors/phone/:phone',
+  authMiddleware,
+  operatorScopeMiddleware,
+  donorPhoneSchema,
+  validateRequest,
+  getDonorByPhone
+);
 
 // ===== DONATION ANALYTICS ROUTES =====
 // IMPORTANT: Analytics routes MUST come BEFORE /:id routes
@@ -79,7 +115,6 @@ router.get(
   validateRequest,
   getMyDonations
 );
-
 
 router.get(
   '/:id',

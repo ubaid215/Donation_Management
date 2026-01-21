@@ -1,16 +1,14 @@
 /* eslint-disable no-unused-vars */
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { PlusCircle, Loader2 } from 'lucide-react'
+import { PlusCircle, Loader2, Search, User, Phone, DollarSign, X } from 'lucide-react'
 import useDonations from '../../hooks/useDonations.js'
+import toast from 'react-hot-toast'
 
-// Remove the hardcoded donationSchema and create a dynamic one
+// Create dynamic validation schema
 const createDonationSchema = (categories = []) => {
-  // Extract category names for validation
-  const categoryNames = categories.map(cat => cat.name)
-  
   return z.object({
     donorName: z.string().min(2, 'Name must be at least 2 characters').max(100),
     donorPhone: z.string().regex(/^[0-9]{10}$/, 'Valid 10-digit phone number required'),
@@ -18,16 +16,32 @@ const createDonationSchema = (categories = []) => {
     purpose: z.string().min(1, 'Purpose is required').max(200),
     paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'UPI', 'CHEQUE']),
     notes: z.string().max(500).optional(),
-    customPurpose: z.string().max(200).optional() // For custom purposes
+    customPurpose: z.string().max(200).optional()
   })
 }
 
 const DonationForm = ({ onSubmitSuccess }) => {
-  const { createDonation, activeCategories } = useDonations()
+  const { 
+    createDonation, 
+    activeCategories,
+    getDonorSuggestions,
+    getDonorByPhone 
+  } = useDonations()
+  
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showCustomPurpose, setShowCustomPurpose] = useState(false)
+  
+  // Donor search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [selectedDonor, setSelectedDonor] = useState(null)
+  
+  const searchTimeoutRef = useRef(null)
+  const wrapperRef = useRef(null)
 
-  // Create dynamic schema based on active categories
+  // Create dynamic schema
   const donationSchema = createDonationSchema(activeCategories)
 
   const {
@@ -46,21 +60,116 @@ const DonationForm = ({ onSubmitSuccess }) => {
     }
   })
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const selectedPurpose = watch('purpose')
 
-  // Update showCustomPurpose when purpose changes
-  React.useEffect(() => {
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setShowSuggestions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Update custom purpose visibility
+  useEffect(() => {
     if (selectedPurpose === 'CUSTOM') {
       setShowCustomPurpose(true)
-      // Clear any previously selected purpose value
       setValue('purpose', '')
     } else if (selectedPurpose && selectedPurpose !== 'CUSTOM') {
       setShowCustomPurpose(false)
-      // Clear custom purpose if a predefined one is selected
       setValue('customPurpose', '')
     }
   }, [selectedPurpose, setValue])
+
+  // Fetch donor suggestions
+  const fetchSuggestions = async (query) => {
+    if (!query || query.trim().length < 2) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
+    try {
+      setSearchLoading(true)
+      const results = await getDonorSuggestions(query, 5)
+      setSuggestions(results || [])
+      setShowSuggestions(true)
+    } catch (error) {
+      console.error('Error fetching suggestions:', error)
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  // Handle search input change
+  const handleSearchChange = (e) => {
+    const query = e.target.value
+    setSearchQuery(query)
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // Set new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(() => {
+      fetchSuggestions(query)
+    }, 300)
+  }
+
+  // Handle donor suggestion click
+  const handleSuggestionClick = async (suggestion) => {
+    try {
+      setSearchLoading(true)
+      
+      // Fetch full donor details
+      const donor = await getDonorByPhone(suggestion.donorPhone)
+      
+      if (donor) {
+        // Fill form with donor info
+        setValue('donorName', donor.donorName)
+        setValue('donorPhone', donor.donorPhone.replace(/^0/, '')) // Remove leading 0 for +92
+        
+        // Set last used purpose and payment method if available
+        if (donor.lastPurpose) {
+          // Check if it's in active categories
+          const categoryExists = activeCategories.some(cat => cat.name === donor.lastPurpose)
+          if (categoryExists) {
+            setValue('purpose', donor.lastPurpose)
+          } else {
+            setValue('purpose', 'CUSTOM')
+            setValue('customPurpose', donor.lastPurpose)
+          }
+        }
+        
+        if (donor.lastPaymentMethod) {
+          setValue('paymentMethod', donor.lastPaymentMethod)
+        }
+        
+        setSelectedDonor(donor)
+        setSearchQuery(donor.donorName)
+        setShowSuggestions(false)
+        toast.success(`Donor loaded: ${donor.donorName}`)
+      }
+    } catch (error) {
+      console.error('Error loading donor:', error)
+      toast.error('Failed to load donor details')
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  // Clear donor selection
+  const handleClearDonor = () => {
+    setSelectedDonor(null)
+    setSearchQuery('')
+    setValue('donorName', '')
+    setValue('donorPhone', '')
+  }
 
   const onSubmit = async (data) => {
     setIsSubmitting(true)
@@ -68,19 +177,34 @@ const DonationForm = ({ onSubmitSuccess }) => {
     // Prepare the final data
     const donationData = {
       ...data,
-      // If custom purpose is used, use it instead of purpose
+      donorPhone: data.donorPhone.startsWith('0') ? data.donorPhone : '0' + data.donorPhone,
       purpose: data.customPurpose || data.purpose
     }
     
-    // Remove customPurpose from the final data as it's not needed in the backend
     delete donationData.customPurpose
     
     const result = await createDonation(donationData)
     setIsSubmitting(false)
     
     if (result.success) {
-      reset()
-      setShowCustomPurpose(false)
+      // Keep donor info for quick re-entry
+      const currentDonorName = data.donorName
+      const currentDonorPhone = data.donorPhone
+      const currentPurpose = data.customPurpose || data.purpose
+      const currentPaymentMethod = data.paymentMethod
+      
+      reset({
+        donorName: currentDonorName,
+        donorPhone: currentDonorPhone,
+        purpose: data.purpose,
+        customPurpose: data.customPurpose,
+        paymentMethod: currentPaymentMethod,
+        amount: '',
+        notes: ''
+      })
+      
+      toast.success('💡 Donor info kept for quick re-entry')
+      
       if (onSubmitSuccess) {
         onSubmitSuccess()
       }
@@ -103,6 +227,87 @@ const DonationForm = ({ onSubmitSuccess }) => {
       </div>
       
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Donor Search */}
+        <div ref={wrapperRef}>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Search Existing Donor
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
+              placeholder="Search by name or phone..."
+              className="input pl-10"
+            />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            {searchLoading && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <Loader2 className="w-5 h-5 animate-spin text-primary-600" />
+              </div>
+            )}
+          </div>
+
+          {/* Suggestions Dropdown */}
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-y-auto">
+              {suggestions.map((suggestion, index) => (
+                <button
+                  key={`${suggestion.donorPhone}-${index}`}
+                  type="button"
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center justify-between border-b border-gray-100 last:border-0 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-gray-400" />
+                      <span className="font-medium text-gray-900">{suggestion.donorName}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Phone className="w-3 h-3 text-gray-400" />
+                      <span className="text-sm text-gray-600">{suggestion.donorPhone}</span>
+                    </div>
+                  </div>
+                  {suggestion.lastDonationDate && (
+                    <div className="text-xs text-gray-500">
+                      Last: {new Date(suggestion.lastDonationDate).toLocaleDateString()}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Selected Donor Info */}
+          {selectedDonor && (
+            <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-blue-900 mb-2">Donor History</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-blue-600">Total Donations:</span>
+                      <span className="ml-2 font-medium">{selectedDonor.totalDonations}</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-600">Total Amount:</span>
+                      <span className="ml-2 font-medium">Rs {selectedDonor.totalAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearDonor}
+                  className="text-blue-600 hover:text-blue-800 ml-4"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Donor Name */}
           <div>
@@ -164,7 +369,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
             )}
           </div>
           
-          {/* Purpose - Dynamic from context */}
+          {/* Purpose */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Donation Purpose *
@@ -172,13 +377,6 @@ const DonationForm = ({ onSubmitSuccess }) => {
             <select
               {...register('purpose')}
               className={`input ${errors.purpose ? 'input-error' : ''}`}
-              onChange={(e) => {
-                if (e.target.value === 'CUSTOM') {
-                  setShowCustomPurpose(true)
-                } else {
-                  setShowCustomPurpose(false)
-                }
-              }}
             >
               <option value="">Select Purpose</option>
               {activeCategories.map(category => (
@@ -193,7 +391,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
             )}
           </div>
           
-          {/* Custom Purpose Input - Shown when "Other" is selected */}
+          {/* Custom Purpose */}
           {showCustomPurpose && (
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -265,6 +463,9 @@ const DonationForm = ({ onSubmitSuccess }) => {
           </button>
           <p className="mt-3 text-sm text-gray-500">
             * WhatsApp confirmation will be sent to donor automatically
+          </p>
+          <p className="mt-1 text-sm text-blue-600">
+            💡 Tip: Search for existing donors to auto-fill their info. After saving, donor details are kept for quick re-entry.
           </p>
         </div>
       </form>

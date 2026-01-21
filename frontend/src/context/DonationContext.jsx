@@ -37,6 +37,10 @@ export const DonationProvider = ({ children }) => {
     pages: 1
   })
 
+  // ===== DONOR SEARCH STATE =====
+  const [donorSearchResults, setDonorSearchResults] = useState([])
+  const [donorSearchLoading, setDonorSearchLoading] = useState(false)
+
   // ===== DONATION OPERATIONS =====
   const fetchDonations = async (newFilters = {}) => {
     try {
@@ -70,17 +74,21 @@ export const DonationProvider = ({ children }) => {
   const createDonation = async (donationData) => {
     try {
       setLoading(true)
-      const donation = await donationService.createDonation(donationData)
+      const result = await donationService.createDonation(donationData)
       
-      setDonations(prev => [donation, ...prev])
-      toast.success('Donation recorded successfully')
-      
-      // Send notifications
-      if (donationData.donorPhone) {
-        toast.success('WhatsApp confirmation sent to donor')
+      if (result.success) {
+        setDonations(prev => [result.donation, ...prev])
+        toast.success('Donation recorded successfully')
+        
+        // Send notifications
+        if (donationData.donorPhone) {
+          toast.success('WhatsApp confirmation sent to donor')
+        }
+        
+        return { success: true, donation: result.donation }
       }
       
-      return { success: true, donation }
+      return { success: false, error: 'Failed to create donation' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to record donation'
       toast.error(message)
@@ -93,6 +101,71 @@ export const DonationProvider = ({ children }) => {
   const clearFilters = () => {
     setFilters({})
     fetchDonations({})
+  }
+
+  // ===== DONOR SEARCH OPERATIONS =====
+
+  // Search donors with full details
+  const searchDonors = async (query, limit = 10) => {
+    if (!query || query.trim().length < 2) {
+      setDonorSearchResults([])
+      return []
+    }
+
+    try {
+      setDonorSearchLoading(true)
+      const result = await donationService.searchDonors(query, limit)
+      
+      if (result.success) {
+        setDonorSearchResults(result.donors || [])
+        return result.donors || []
+      }
+      
+      return []
+    } catch (error) {
+      console.error('Failed to search donors:', error)
+      return []
+    } finally {
+      setDonorSearchLoading(false)
+    }
+  }
+
+  // Get donor suggestions for autocomplete
+  const getDonorSuggestions = async (query, limit = 5) => {
+    if (!query || query.trim().length < 2) {
+      return []
+    }
+
+    try {
+      const result = await donationService.getDonorSuggestions(query, limit)
+      return result.success ? (result.suggestions || []) : []
+    } catch (error) {
+      console.error('Failed to get donor suggestions:', error)
+      return []
+    }
+  }
+
+  // Get donor by phone number
+  const getDonorByPhone = async (phone) => {
+    if (!phone || phone.trim().length === 0) {
+      return null
+    }
+
+    try {
+      const result = await donationService.getDonorByPhone(phone)
+      return result.success ? result.donor : null
+    } catch (error) {
+      // Don't show error toast for 404 (donor not found)
+      if (error.response?.status !== 404) {
+        console.error('Failed to get donor by phone:', error)
+      }
+      return null
+    }
+  }
+
+  // Clear donor search results
+  const clearDonorSearch = () => {
+    setDonorSearchResults([])
   }
 
   // ===== CATEGORY OPERATIONS =====
@@ -115,8 +188,10 @@ export const DonationProvider = ({ children }) => {
   const fetchActiveCategories = async () => {
     try {
       const result = await donationService.getActiveCategories()
-      // The new endpoint should return { success: true, categories: [...] }
-      if (result.data && result.data.success) {
+      // Handle the response structure
+      if (result.success) {
+        setActiveCategories(result.categories || [])
+      } else if (result.data && result.data.success) {
         setActiveCategories(result.data.categories || [])
       } else {
         setActiveCategories([])
@@ -251,6 +326,14 @@ export const DonationProvider = ({ children }) => {
     createDonation,
     setFilters,
     clearFilters,
+    
+    // Donor search state & methods
+    donorSearchResults,
+    donorSearchLoading,
+    searchDonors,
+    getDonorSuggestions,
+    getDonorByPhone,
+    clearDonorSearch,
     
     // Category state & methods
     categories,

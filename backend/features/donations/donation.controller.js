@@ -4,7 +4,7 @@ import { DonationService } from './service.js';
 const donationService = new DonationService();
 
 export const createDonation = asyncHandler(async (req, res) => {
-  const donation = await donationService.createDonation(req.body, req.user.id);
+  const donation = await donationService.createDonation(req.body, req.user.id, req.ip);
   
   res.status(201).json({
     success: true,
@@ -41,12 +41,11 @@ export const getAllDonations = asyncHandler(async (req, res) => {
 });
 
 export const getAnalytics = asyncHandler(async (req, res) => {
-  // Fixed: Call the correct method name from the service
   const analytics = await donationService.getDonationAnalytics(req.query.timeframe);
   
   res.json({
     success: true,
-    data: analytics  // Changed from 'analytics' to 'data' for consistency
+    data: analytics
   });
 });
 
@@ -57,5 +56,71 @@ export const getTopDonors = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     donors
+  });
+});
+
+// NEW ENDPOINTS FOR DONOR SEARCH
+
+export const searchDonors = asyncHandler(async (req, res) => {
+  const { q, limit } = req.query;
+
+  if (!q || q.trim().length < 2) {
+    return res.status(400).json({
+      success: false,
+      error: 'Search query must be at least 2 characters'
+    });
+  }
+
+  const donors = await donationService.searchDonors(q, parseInt(limit) || 10);
+
+  res.json({
+    success: true,
+    donors
+  });
+});
+
+export const getDonorByPhone = asyncHandler(async (req, res) => {
+  const { phone } = req.params;
+
+  if (!phone) {
+    return res.status(400).json({
+      success: false,
+      error: 'Phone number is required'
+    });
+  }
+
+  const donor = await donationService.getDonorByPhone(phone);
+
+  if (!donor) {
+    return res.status(404).json({
+      success: false,
+      error: 'Donor not found'
+    });
+  }
+
+  res.json({
+    success: true,
+    donor
+  });
+});
+
+export const getDonorSuggestions = asyncHandler(async (req, res) => {
+  const { q, limit } = req.query;
+
+  if (!q || q.trim().length < 2) {
+    return res.json({
+      success: true,
+      suggestions: []
+    });
+  }
+
+  const suggestions = await donationService.getDonorSuggestions(
+    q,
+    parseInt(limit) || 5
+  );
+
+  res.json({
+    success: true,
+    suggestions
   });
 });

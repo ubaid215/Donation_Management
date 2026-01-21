@@ -36,7 +36,7 @@ export class DonationService {
         data: {
           donorName: donationData.donorName,
           donorPhone: donationData.donorPhone,
-          amount: parseFloat(donationData.amount), // Convert to Decimal
+          amount: parseFloat(donationData.amount),
           purpose: donationData.purpose,
           categoryId: categoryId,
           paymentMethod: donationData.paymentMethod,
@@ -84,6 +84,138 @@ export class DonationService {
 
     this.sendDonationNotifications(donation);
     return donation;
+  }
+
+  // NEW: Search donors by name or phone
+  async searchDonors(searchQuery, limit = 10) {
+    if (!searchQuery || searchQuery.trim().length < 2) {
+      return [];
+    }
+
+    const search = searchQuery.trim();
+
+    // Get unique donors based on phone number or name
+    const donors = await this.prisma.donation.groupBy({
+      by: ['donorPhone', 'donorName'],
+      where: {
+        OR: [
+          { donorName: { contains: search, mode: 'insensitive' } },
+          { donorPhone: { contains: search, mode: 'insensitive' } }
+        ]
+      },
+      _count: true,
+      _sum: { amount: true },
+      _max: { date: true },
+      orderBy: {
+        _max: { date: 'desc' } // Most recent donors first
+      },
+      take: limit
+    });
+
+    return donors.map(donor => ({
+      donorName: donor.donorName,
+      donorPhone: donor.donorPhone,
+      totalDonations: donor._count,
+      totalAmount: donor._sum.amount ? parseFloat(donor._sum.amount.toString()) : 0,
+      lastDonationDate: donor._max.date
+    }));
+  }
+
+  // NEW: Get donor details by phone number
+  async getDonorByPhone(phone) {
+    if (!phone || phone.trim().length === 0) {
+      return null;
+    }
+
+    // Get the most recent donation for this phone number
+    const latestDonation = await this.prisma.donation.findFirst({
+      where: {
+        donorPhone: phone.trim()
+      },
+      orderBy: {
+        date: 'desc'
+      },
+      select: {
+        donorName: true,
+        donorPhone: true,
+        purpose: true,
+        paymentMethod: true
+      }
+    });
+
+    if (!latestDonation) {
+      return null;
+    }
+
+    // Get donation history for this donor
+    const [donationCount, totalAmount, donations] = await Promise.all([
+      this.prisma.donation.count({
+        where: { donorPhone: phone.trim() }
+      }),
+      this.prisma.donation.aggregate({
+        where: { donorPhone: phone.trim() },
+        _sum: { amount: true }
+      }),
+      this.prisma.donation.findMany({
+        where: { donorPhone: phone.trim() },
+        orderBy: { date: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          amount: true,
+          purpose: true,
+          paymentMethod: true,
+          date: true
+        }
+      })
+    ]);
+
+    return {
+      donorName: latestDonation.donorName,
+      donorPhone: latestDonation.donorPhone,
+      lastPurpose: latestDonation.purpose,
+      lastPaymentMethod: latestDonation.paymentMethod,
+      totalDonations: donationCount,
+      totalAmount: totalAmount._sum.amount ? parseFloat(totalAmount._sum.amount.toString()) : 0,
+      recentDonations: donations.map(d => ({
+        id: d.id,
+        amount: parseFloat(d.amount.toString()),
+        purpose: d.purpose,
+        paymentMethod: d.paymentMethod,
+        date: d.date
+      }))
+    };
+  }
+
+  // NEW: Get donor suggestions (autocomplete)
+  async getDonorSuggestions(query, limit = 5) {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+
+    const search = query.trim();
+
+    // Get unique donor names and phones
+    const suggestions = await this.prisma.donation.groupBy({
+      by: ['donorPhone', 'donorName'],
+      where: {
+        OR: [
+          { donorName: { contains: search, mode: 'insensitive' } },
+          { donorPhone: { contains: search, mode: 'insensitive' } }
+        ]
+      },
+      _max: { date: true },
+      orderBy: {
+        _max: { date: 'desc' }
+      },
+      take: limit
+    });
+
+    return suggestions.map(s => ({
+      donorName: s.donorName,
+      donorPhone: s.donorPhone,
+      lastDonationDate: s._max.date
+    }));
   }
 
   async getOperatorDonations(operatorId, filters = {}) {
@@ -209,7 +341,7 @@ export class DonationService {
 
   async getDonationAnalytics(timeframe = 'month') {
     const now = new Date();
-    let startDate = new Date(); // Fixed: create new instance
+    let startDate = new Date();
 
     switch (timeframe) {
       case 'today':
@@ -238,15 +370,10 @@ export class DonationService {
       donationsByOperator,
       topDonors
     ] = await Promise.all([
-      // Total donations count
       this.prisma.donation.count(),
-
-      // Total amount
       this.prisma.donation.aggregate({
         _sum: { amount: true }
       }),
-
-      // Today's donations
       this.prisma.donation.aggregate({
         where: {
           date: {
@@ -256,8 +383,6 @@ export class DonationService {
         _sum: { amount: true },
         _count: true
       }),
-
-      // Monthly donations (last 30 days)
       this.prisma.donation.aggregate({
         where: {
           date: {
@@ -267,17 +392,9 @@ export class DonationService {
         _sum: { amount: true },
         _count: true
       }),
-
-      // Donations per day (last 30 days)
       this.getDonationsByDay(startDate),
-
-      // Donations by purpose
       this.getDonationsByPurpose(startDate),
-
-      // Donations by operator
       this.getDonationsByOperator(startDate),
-
-      // Top donors
       this.getTopDonors()
     ]);
 
@@ -313,16 +430,14 @@ export class DonationService {
     LIMIT 30
   `;
 
-    // Convert BigInt to Number and format the response
     return donations.map(row => ({
       day: row.day,
-      count: Number(row.count), // Convert BigInt to Number
-      total_amount: Number(row.total_amount) // Change to snake_case
+      count: Number(row.count),
+      total_amount: Number(row.total_amount)
     }));
   }
 
   async getDonationsByPurpose(startDate) {
-    // Get all active categories with their donations
     const categories = await this.prisma.donationCategory.findMany({
       where: { isActive: true },
       include: {
@@ -337,7 +452,6 @@ export class DonationService {
       }
     });
 
-    // Calculate stats for each category
     const categoryStats = categories
       .map(cat => {
         const totalAmount = cat.donations.reduce((sum, donation) =>
@@ -351,11 +465,10 @@ export class DonationService {
           amount: totalAmount
         };
       })
-      .filter(item => item.count > 0) // Only show categories with donations
-      .sort((a, b) => b.amount - a.amount) // Sort by amount descending
-      .slice(0, 10); // Top 10
+      .filter(item => item.count > 0)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 10);
 
-    // Also get donations without categories (legacy data)
     const uncategorizedDonations = await this.prisma.donation.groupBy({
       by: ['purpose'],
       where: {
@@ -376,7 +489,6 @@ export class DonationService {
       amount: item._sum.amount ? parseFloat(item._sum.amount.toString()) : 0
     }));
 
-    // Combine both, with categorized first
     return [...categoryStats, ...uncategorizedStats].slice(0, 10);
   }
 
@@ -393,7 +505,6 @@ export class DonationService {
       }
     });
 
-    // Fetch operator names
     const operatorIds = donations.map(d => d.operatorId);
     const operators = await this.prisma.user.findMany({
       where: { id: { in: operatorIds } },
@@ -444,7 +555,6 @@ export class DonationService {
 
   async sendDonationNotifications(donation) {
     try {
-      // Email notification to admin
       if (process.env.ADMIN_EMAIL) {
         await sendEmailNotification({
           to: process.env.ADMIN_EMAIL,
@@ -461,7 +571,6 @@ export class DonationService {
         });
       }
 
-      // WhatsApp notification to donor
       if (donation.donorPhone) {
         await sendWhatsAppNotification({
           to: donation.donorPhone,
@@ -470,7 +579,6 @@ export class DonationService {
       }
     } catch (error) {
       console.error('Notification sending failed:', error);
-      // Don't fail the donation creation if notifications fail
     }
   }
 }

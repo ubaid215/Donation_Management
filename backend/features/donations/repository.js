@@ -5,6 +5,26 @@ export class DonationRepository {
     this.prisma = prisma;
   }
 
+  createDateFilter(startDate, endDate) {
+    const filter = {};
+    
+    if (startDate) {
+      // For start date, include from the beginning of the day
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0); // Set to 00:00:00.000
+      filter.gte = start;
+    }
+    
+    if (endDate) {
+      // For end date, include until the end of the day
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999); // Set to 23:59:59.999
+      filter.lte = end;
+    }
+    
+    return Object.keys(filter).length > 0 ? filter : undefined;
+  }
+
   async create(data) {
     return await this.prisma.donation.create({
       data,
@@ -50,7 +70,7 @@ export class DonationRepository {
     });
   }
 
-  async findByOperator(operatorId, filters = {}) {
+   async findByOperator(operatorId, filters = {}) {
     const { 
       startDate, 
       endDate, 
@@ -61,16 +81,23 @@ export class DonationRepository {
     } = filters;
 
     const where = {
-      operatorId,
-      ...(startDate || endDate) && {
-        date: {
-          ...(startDate && { gte: new Date(startDate) }),
-          ...(endDate && { lte: new Date(endDate) })
-        }
-      },
-      ...(purpose && { purpose: { contains: purpose, mode: 'insensitive' } }),
-      ...(paymentMethod && { paymentMethod })
+      operatorId
     };
+
+    // Fix date filtering
+    const dateFilter = this.createDateFilter(startDate, endDate);
+    if (dateFilter) {
+      where.date = dateFilter;
+    }
+
+    // Add other filters
+    if (purpose) {
+      where.purpose = { contains: purpose, mode: 'insensitive' };
+    }
+    
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod;
+    }
 
     const [donations, total] = await Promise.all([
       this.prisma.donation.findMany({
@@ -123,30 +150,47 @@ export class DonationRepository {
       limit = 50
     } = filters;
 
-    const where = {
-      ...(operatorId && { operatorId }),
-      ...(startDate || endDate) && {
-        date: {
-          ...(startDate && { gte: new Date(startDate) }),
-          ...(endDate && { lte: new Date(endDate) })
-        }
-      },
-      ...(purpose && { purpose: { contains: purpose, mode: 'insensitive' } }),
-      ...(paymentMethod && { paymentMethod }),
-      ...(categoryId && { categoryId }),
-      ...(minAmount || maxAmount) && {
-        amount: {
-          ...(minAmount && { gte: parseFloat(minAmount) }),
-          ...(maxAmount && { lte: parseFloat(maxAmount) })
-        }
-      },
-      ...(search && {
-        OR: [
-          { donorName: { contains: search, mode: 'insensitive' } },
-          { donorPhone: { contains: search, mode: 'insensitive' } }
-        ]
-      })
-    };
+    const where = {};
+
+    // Fix date filtering
+    const dateFilter = this.createDateFilter(startDate, endDate);
+    if (dateFilter) {
+      where.date = dateFilter;
+    }
+
+    // Add other filters
+    if (operatorId) {
+      where.operatorId = operatorId;
+    }
+    
+    if (purpose) {
+      where.purpose = { contains: purpose, mode: 'insensitive' };
+    }
+    
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod;
+    }
+    
+    if (categoryId) {
+      where.categoryId = categoryId;
+    }
+    
+    if (minAmount || maxAmount) {
+      where.amount = {};
+      if (minAmount) {
+        where.amount.gte = parseFloat(minAmount);
+      }
+      if (maxAmount) {
+        where.amount.lte = parseFloat(maxAmount);
+      }
+    }
+    
+    if (search) {
+      where.OR = [
+        { donorName: { contains: search, mode: 'insensitive' } },
+        { donorPhone: { contains: search, mode: 'insensitive' } }
+      ];
+    }
 
     const [donations, total] = await Promise.all([
       this.prisma.donation.findMany({
@@ -183,6 +227,7 @@ export class DonationRepository {
       }
     };
   }
+
 
   async getAnalytics(timeframe = 'month') {
     const now = new Date();

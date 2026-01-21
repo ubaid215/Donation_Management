@@ -72,6 +72,146 @@ export const updateOperator = asyncHandler(async (req, res) => {
   });
 });
 
+// 👤 Update profile controller
+export const updateProfile = asyncHandler(async (req, res) => {
+  try {
+    const user = await authService.updateProfile(req.user.id, req.body);
+    
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// for admin
+export const changeEmail = asyncHandler(async (req, res) => {
+  try {
+    const { newEmail, currentPassword } = req.body;
+    
+    if (!newEmail || !currentPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required'
+      });
+    }
+
+    // Only allow admins to change email
+    if (req.user.role !== 'ADMIN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only administrators can change email addresses'
+      });
+    }
+    
+    const result = await authService.changeEmail(
+      req.user.id,
+      newEmail,
+      currentPassword
+    );
+    
+    res.json({
+      success: true,
+      message: result.message
+    });
+  } catch (error) {
+    console.error('Change email error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// 🔐 Change password controller
+export const changePassword = asyncHandler(async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match'
+      });
+    }
+    
+    const result = await authService.changePassword(
+      req.user.id,
+      currentPassword,
+      newPassword
+    );
+    
+    res.json({
+      success: true,
+      message: result.message
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+export const requestPasswordReset = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  
+  const result = await authService.requestPasswordReset(email);
+  
+  res.status(200).json({
+    success: true,
+    message: result.message || 'If your email exists, you will receive a reset link shortly.'
+  });
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password, confirmPassword } = req.body;
+  
+  // Validate passwords match
+  if (password !== confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'Passwords do not match'
+    });
+  }
+  
+  const result = await authService.resetPassword(token, password);
+  
+  res.status(200).json({
+    success: true,
+    message: result.message || 'Password reset successful. You can now login with your new password.'
+  });
+});
+
+export const verifyResetToken = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+  
+  if (!token) {
+    return res.status(400).json({
+      success: false,
+      error: 'Reset token is required'
+    });
+  }
+  
+  const result = await authService.verifyResetToken(token);
+  
+  res.status(200).json({
+    success: true,
+    valid: result.valid,
+    email: result.email,
+    message: result.message
+  });
+});
+
 export const getOperatorStats = asyncHandler(async (req, res) => {
   const stats = await authService.getOperatorStats();
   

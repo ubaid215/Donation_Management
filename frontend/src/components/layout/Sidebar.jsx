@@ -10,7 +10,9 @@ import {
   LogOut,
   Menu,
   X,
-  PenLineIcon
+  PenLineIcon,
+  Settings, 
+  UserCircle 
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 
@@ -26,10 +28,12 @@ const Sidebar = () => {
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/audit-logs', icon: Shield, label: 'Audit Logs' },
     { path: '/operators', icon: Users, label: 'Operators' },
+    { path: '/settings', icon: Settings, label: 'Settings' }, 
   ]
 
   const operatorNavItems = [
     { path: '/donations', icon: HandCoins, label: 'Donations' },
+    { path: '/settings', icon: Settings, label: 'Settings' }, 
   ]
 
   const navItems = isAdmin() ? adminNavItems : operatorNavItems
@@ -103,19 +107,25 @@ const Sidebar = () => {
           <div className="border-t border-gray-200 p-4">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 bg-gray-900 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-semibold text-sm">
-                  {user?.name?.charAt(0).toUpperCase() || 'U'}
-                </span>
+                <UserCircle className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{user?.name}</p>
                 <p className="text-xs text-gray-500 truncate">{user?.email}</p>
               </div>
             </div>
-            <div className="mb-3">
+            <div className="flex gap-2 mb-3">
               <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">
                 {user?.role}
               </span>
+              <NavLink
+                to="/settings"
+                onClick={() => setIsOpen(false)}
+                className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
+              >
+                <Settings className="w-3 h-3 mr-1" />
+                Settings
+              </NavLink>
             </div>
             <button
               onClick={logout}

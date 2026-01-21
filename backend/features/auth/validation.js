@@ -52,3 +52,81 @@ export const updateUserSchema = [
     .optional()
     .isBoolean().withMessage('isActive must be boolean')
 ];
+
+export const requestResetSchema = [
+  body('email')
+    .isEmail().withMessage('Valid email is required')
+    .normalizeEmail()
+    .notEmpty().withMessage('Email is required')
+];
+
+export const resetPasswordSchema = [
+  body('token')
+    .notEmpty().withMessage('Reset token is required')
+    .isLength({ min: 64, max: 64 }).withMessage('Invalid reset token format'),
+  
+  body('password')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/\d/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least one special character'),
+  
+  body('confirmPassword')
+    .notEmpty().withMessage('Confirm password is required')
+    .custom((value, { req }) => {
+      if (value !== req.body.password) {
+        throw new Error('Passwords do not match');
+      }
+      return true;
+    })
+];
+
+export const verifyTokenSchema = [
+  body('token')
+    .notEmpty().withMessage('Reset token is required')
+    .isLength({ min: 64, max: 64 }).withMessage('Invalid reset token format')
+];
+
+export const updateProfileSchema = [
+  body('name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
+  
+  body('phone')
+    .optional()
+    .trim()
+    .matches(/^\+?[0-9\s\-\(\)]{5,20}$/).withMessage('Please enter a valid phone number')
+];
+
+export const changePasswordSchema = [
+  body('currentPassword')
+    .notEmpty().withMessage('Current password is required'),
+  
+  body('newPassword')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/\d/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least one special character'),
+  
+  body('confirmPassword')
+    .notEmpty().withMessage('Confirm password is required')
+    .custom((value, { req }) => {
+      if (value !== req.body.newPassword) {
+        throw new Error('Passwords do not match');
+      }
+      return true;
+    })
+];
+
+export const changeEmailSchema = [
+  body('newEmail')
+    .isEmail().withMessage('Valid email is required')
+    .normalizeEmail()
+    .notEmpty().withMessage('New email is required'),
+  
+  body('currentPassword')
+    .notEmpty().withMessage('Current password is required')
+];

@@ -1,6 +1,7 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useContext, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../services/api.js'
 
@@ -19,6 +20,16 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'))
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Reset loading when navigating away from auth pages
+  useEffect(() => {
+    if (loading && !location.pathname.includes('/login') && 
+        !location.pathname.includes('/reset-password') &&
+        !location.pathname.includes('/forgot-password')) {
+      setLoading(false)
+    }
+  }, [location.pathname, loading])
 
   useEffect(() => {
     if (token) {
@@ -26,13 +37,18 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   const verifyToken = async () => {
     try {
       const response = await api.get('/auth/verify')
-      setUser(response.user) // Fixed: response is already the data
+      setUser(response.user)
     } catch (error) {
+      // Only show logout toast if user was previously logged in
+      if (user) {
+        toast.error('Session expired. Please login again.')
+      }
       logout()
     } finally {
       setLoading(false)
@@ -42,10 +58,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await api.post('/auth/login', { email, password })
-      // Fixed: response is already the data object from the interceptor
       const { token, user } = response
-      
-      console.log('Login response:', response) // Debug log
       
       localStorage.setItem('token', token)
       setToken(token)
@@ -53,7 +66,6 @@ export const AuthProvider = ({ children }) => {
       
       toast.success(`Welcome back, ${user.name}!`)
       
-      // Navigate based on role
       if (user.role === 'ADMIN') {
         navigate('/dashboard', { replace: true })
       } else {
@@ -77,6 +89,81 @@ export const AuthProvider = ({ children }) => {
     toast.success('Logged out successfully')
   }
 
+  // 🔐 Password reset functions
+  const requestPasswordReset = async (email) => {
+    try {
+      const response = await api.post('/auth/forgot-password', { email })
+      toast.success(response.message || 'Reset link sent to your email')
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || error.message || 'Failed to send reset link'
+      toast.error(message)
+      return { success: false, error: message }
+    }
+  }
+
+  const resetPassword = async (token, password, confirmPassword) => {
+    try {
+      const response = await api.post('/auth/reset-password', { 
+        token, 
+        password, 
+        confirmPassword 
+      })
+      toast.success(response.message || 'Password reset successful')
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.error || error.message || 'Failed to reset password'
+      toast.error(message)
+      return { success: false, error: message }
+    }
+  }
+
+  // 👤 Update user profile
+  const updateProfile = async (profileData) => {
+    try {
+      const response = await api.patch('/auth/profile', profileData)
+      if (response.success) {
+        // Update user in context
+        setUser(prev => ({
+          ...prev,
+          ...response.user
+        }))
+        toast.success('Profile updated successfully')
+      }
+      return { success: true, user: response.user }
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to update profile'
+      toast.error(message)
+      return { success: false, error: message }
+    }
+  }
+
+  // 🔐 Change password
+  const changePassword = async (passwordData) => {
+    try {
+      const response = await api.post('/auth/change-password', passwordData)
+      toast.success(response.message || 'Password changed successfully')
+      return { success: true }
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to change password'
+      toast.error(message)
+      return { success: false, error: message }
+    }
+  }
+
+  // Add this function to AuthContext
+const changeEmail = async (emailData) => {
+  try {
+    const response = await api.post('/auth/change-email', emailData)
+    toast.success(response.message || 'Email changed successfully')
+    return { success: true }
+  } catch (error) {
+    const message = error.response?.data?.message || error.message || 'Failed to change email'
+    toast.error(message)
+    return { success: false, error: message }
+  }
+}
+
   const isAdmin = () => user?.role === 'ADMIN'
   const isOperator = () => user?.role === 'OPERATOR'
 
@@ -86,6 +173,11 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     logout,
+    requestPasswordReset,
+    resetPassword,
+    updateProfile,
+    changePassword,
+    changeEmail,
     isAdmin,
     isOperator,
     setUser

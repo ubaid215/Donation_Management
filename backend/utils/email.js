@@ -35,7 +35,7 @@ export function renderDonationEmail({
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Donation Receipt - Astana Foundation</title>
+    <title>Donation Receipt - Khanqah Foundation</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -154,7 +154,7 @@ export function renderDonationEmail({
 <body>
     <div class="header">
         <h1>🤲 JazakAllah Khair! 🌙</h1>
-        <p>Donation Receipt - Astana Foundation</p>
+        <p>Donation Receipt - Khanqah Aliya</p>
     </div>
     
     <div class="content">
@@ -191,7 +191,7 @@ export function renderDonationEmail({
         
         ${customMessage ? `
         <div class="custom-message">
-            <strong>Note from Astana Foundation:</strong>
+            <strong>Note from Khanqah Aliya:</strong>
             <p>${customMessage}</p>
         </div>
         ` : ''}
@@ -209,12 +209,11 @@ export function renderDonationEmail({
         </div>
         
         <div class="contact-info">
-            <p><strong>📍 Astana Foundation</strong></p>
+            <p><strong>📍 Khanqah Saifia Murshidabad Shreef</strong></p>
             <p>Khanqah Saifia & Jamia Abi Bakr</p>
             <p>Faisalabad, Pakistan</p>
-            <p>📞 Phone: +92-XXX-XXXXXXX</p>
-            <p>📧 Email: info@astanafoundation.org</p>
-            <p>🌐 Website: www.astanafoundation.org</p>
+            <p>📞 Phone: +92-321-7677062</p>
+            <p>🌐 Website: www.khanqahsaifia.com</p>
         </div>
         
         <div class="quran-verse" style="background: #fff3cd; border-left-color: #856404;">
@@ -225,8 +224,6 @@ export function renderDonationEmail({
         
         <div class="footer">
             <p>This is an automated receipt. Please keep this email for your records.</p>
-            <p><span class="badge">🕌 Charitable Organization</span></p>
-            <p>Tax Exemption Certificate No: XXXXXXXX</p>
             <p>© ${new Date().getFullYear()} Astana Foundation. All rights reserved.</p>
         </div>
     </div>

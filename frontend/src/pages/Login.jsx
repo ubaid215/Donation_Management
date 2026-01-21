@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom' // ADD Link import
 import { Lock, Mail, Eye, EyeOff, Building2 } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
@@ -86,9 +86,18 @@ const Login = () => {
 
           {/* Password */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              Password
-            </label>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="block text-xs font-medium text-gray-700">
+                Password
+              </label>
+              {/* ADD THIS: Forgot Password Link */}
+              <Link 
+                to="/forgot-password" 
+                className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
@@ -127,6 +136,16 @@ const Login = () => {
             )}
           </button>
         </form>
+
+        {/* ADD THIS: Create Account Link (Optional) */}
+        <div className="text-center">
+          <p className="text-xs text-gray-500">
+            Don't have an account?{' '}
+            <span className="text-gray-700 font-medium">
+              Contact your administrator
+            </span>
+          </p>
+        </div>
 
         {/* Footer */}
         <div className="pt-4 border-t border-gray-100">

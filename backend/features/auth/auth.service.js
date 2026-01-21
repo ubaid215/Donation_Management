@@ -2,7 +2,8 @@ import prisma from '../../config/prisma.js';
 import { hashPassword, verifyPassword } from '../../utils/password.js';
 import { generateToken } from '../../utils/jwt.js';
 import { createAuditLog } from '../../utils/auditLogger.js';
-import { sendEmailNotification } from '../../utils/notification.js'; // Added .js extension
+import { sendEmailNotification } from '../../utils/notification.js'; 
+import crypto from 'crypto';
 
 export class AuthService {
   constructor() {
@@ -238,6 +239,7 @@ export class AuthService {
           <p>Your operator account has been created successfully.</p>
           <p>You can now login and start recording donations.</p>
           <p><strong>Login Email:</strong> ${operator.email}</p>
+          <p><strong>Login password:</strong> ${operator.password}</p>
           <br>
           <p>Best regards,<br>Administration Team</p>
         `
@@ -454,4 +456,587 @@ export class AuthService {
 
     return { user };
   }
+
+  async requestPasswordReset(email) {
+  console.log('[AuthService.requestPasswordReset] Initiated', { email });
+
+  // 1️⃣ Find user WITHOUT revealing if they exist (security best practice)
+  const user = await this.prisma.user.findUnique({
+    where: { email, isActive: true },
+    select: { id: true, email: true, name: true, role: true }
+  });
+
+  
+  if (!user) {
+    console.warn('[PasswordReset] Email not found or inactive', { email });
+    // Still return success to user (security best practice)
+    return { success: true, message: 'If email exists, reset link sent' };
+  }
+
+  // 2️⃣ Generate secure reset token
+  const rawToken = crypto.randomBytes(32).toString('hex'); // 64-character token
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(rawToken)
+    .digest('hex');
+
+  // 3️⃣ Set expiry (15 minutes from now)
+  const expiry = new Date(Date.now() + 15 * 60 * 1000);
+
+  // 4️⃣ Store hashed token and expiry in database
+  await this.prisma.user.update({
+    where: { id: user.id },
+    data: {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpiry: expiry
+    }
+  });
+
+  // 5️⃣ Create reset link (frontend URL + token)
+  const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${rawToken}`;
+
+  // 6️⃣ Send email
+  try {
+    await sendEmailNotification({
+      to: user.email,
+      subject: 'Reset Your Password - Donation Management System',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Password Reset Request</h2>
+          <p>Hello <strong>${user.name}</strong>,</p>
+          <p>You recently requested to reset your password for your Donation Management System account.</p>
+          <p>Click the button below to reset your password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" 
+               style="background-color: #4CAF50; color: white; padding: 12px 24px; 
+                      text-decoration: none; border-radius: 4px; font-weight: bold;">
+              Reset Password
+            </a>
+          </div>
+          <p><strong>This link will expire in 15 minutes.</strong></p>
+          <p>If you didn't request this password reset, please ignore this email or contact support.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">
+            Security Tip: Never share your password or this reset link with anyone.
+          </p>
+        </div>
+      `
+    });
+    console.log('[PasswordReset] Reset email sent', { userId: user.id });
+  } catch (emailError) {
+    console.error('[PasswordReset] Failed to send email:', emailError.message);
+    // Don't throw error - user shouldn't know if email failed
+  }
+
+  // 7️⃣ Create audit log
+  await createAuditLog({
+    action: 'PASSWORD_RESET_REQUESTED',
+    userId: user.id,
+    userRole: user.role,
+    entityType: 'USER',
+    entityId: user.id,
+    description: 'User requested password reset',
+    metadata: {
+      email: user.email,
+      tokenGeneratedAt: new Date().toISOString()
+    }
+  });
+
+  return { 
+    success: true, 
+    message: 'If your email exists in our system, you will receive a reset link.' 
+  };
+}
+
+
+// Add these methods to AuthService class
+
+// 👤 Update profile (for logged-in user)
+async updateProfile(userId, profileData) {
+  console.log('[AuthService.updateProfile] Updating profile for user:', userId);
+  
+  // Validate input
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+
+  const { name, phone } = profileData;
+  
+  // Build update payload
+  const updatePayload = {};
+  if (name !== undefined) {
+    if (name.trim().length < 2) {
+      throw new Error('Name must be at least 2 characters');
+    }
+    updatePayload.name = name.trim();
+  }
+  
+  if (phone !== undefined) {
+    // Basic phone validation
+    if (phone.trim().length < 5) {
+      throw new Error('Please enter a valid phone number');
+    }
+    updatePayload.phone = phone.trim();
+  }
+
+  // Check if there's anything to update
+  if (Object.keys(updatePayload).length === 0) {
+    throw new Error('No valid fields to update');
+  }
+
+  try {
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId, isActive: true },
+      data: updatePayload,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        updatedAt: true
+      }
+    });
+
+    // Create audit log
+    await createAuditLog({
+      action: 'USER_UPDATED',
+      userId: userId,
+      userRole: updatedUser.role,
+      entityType: 'USER',
+      entityId: userId,
+      description: 'User updated their profile',
+      metadata: {
+        changes: updatePayload
+      }
+    });
+
+    console.log('[AuthService.updateProfile] Profile updated successfully', {
+      userId,
+      changes: updatePayload
+    });
+
+    return updatedUser;
+    
+  } catch (error) {
+    console.error('[AuthService.updateProfile] Failed:', error);
+    
+    if (error.code === 'P2025') {
+      throw new Error('User not found or inactive');
+    }
+    
+    throw error;
+  }
+};
+
+// Add this method to your backend AuthService class
+async changeEmail(userId, newEmail, currentPassword) {
+  console.log('[AuthService.changeEmail] Changing email for user:', userId);
+  
+  if (!userId || !newEmail || !currentPassword) {
+    throw new Error('All fields are required');
+  }
+
+  // Email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(newEmail)) {
+    throw new Error('Please enter a valid email address');
+  }
+
+  // Get user with password hash
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId, isActive: true },
+    select: {
+      id: true,
+      email: true,
+      passwordHash: true,
+      role: true,
+      name: true
+    }
+  });
+
+  if (!user) {
+    throw new Error('User not found or inactive');
+  }
+
+  // Check if new email is different
+  if (user.email === newEmail) {
+    throw new Error('New email must be different from current email');
+  }
+
+  // Check if email already exists
+  const existingUser = await this.prisma.user.findUnique({
+    where: { email: newEmail }
+  });
+
+  if (existingUser) {
+    throw new Error('Email address already exists');
+  }
+
+  // Verify current password
+  const isValid = await verifyPassword(currentPassword, user.passwordHash);
+  if (!isValid) {
+    throw new Error('Current password is incorrect');
+  }
+
+  try {
+    await this.prisma.$transaction(async (tx) => {
+      // Update email
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          email: newEmail,
+          updatedAt: new Date()
+        }
+      });
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          action: 'EMAIL_CHANGED',
+          entityType: 'USER',
+          entityId: userId,
+          description: 'User changed their email address',
+          userRole: user.role,
+          userId: userId,
+          metadata: {
+            oldEmail: user.email,
+            newEmail: newEmail,
+            changedAt: new Date().toISOString()
+          },
+          timestamp: new Date()
+        }
+      });
+    });
+
+    // Send email notification to old email
+    try {
+      await sendEmailNotification({
+        to: user.email,
+        subject: 'Email Address Changed - Donation Management System',
+        html: `
+          <div style="font-family: Arial, sans-serif;">
+            <h3>Email Address Changed</h3>
+            <p>Your email address has been changed from <strong>${user.email}</strong> to <strong>${newEmail}</strong>.</p>
+            <p>You will need to use your new email address to login.</p>
+            <p>If you did not perform this action, please contact support immediately.</p>
+          </div>
+        `
+      });
+    } catch (emailError) {
+      console.warn('[AuthService.changeEmail] Old email notification failed:', emailError.message);
+    }
+
+    // Send email notification to new email
+    try {
+      await sendEmailNotification({
+        to: newEmail,
+        subject: 'Welcome to Your New Email - Donation Management System',
+        html: `
+          <div style="font-family: Arial, sans-serif;">
+            <h3>Email Address Updated Successfully</h3>
+            <p>Your email address has been successfully changed to this address.</p>
+            <p>You can now use <strong>${newEmail}</strong> to login to your account.</p>
+            <p>If you did not request this change, please contact support immediately.</p>
+          </div>
+        `
+      });
+    } catch (emailError) {
+      console.warn('[AuthService.changeEmail] New email notification failed:', emailError.message);
+    }
+
+    console.log('[AuthService.changeEmail] Email changed successfully', {
+      userId,
+      oldEmail: user.email,
+      newEmail
+    });
+
+    return { 
+      success: true, 
+      message: 'Email address changed successfully. Please login with your new email.' 
+    };
+    
+  } catch (error) {
+    console.error('[AuthService.changeEmail] Failed:', error);
+    throw new Error('Failed to change email address');
+  }
+}
+
+// 🔐 Change password (for logged-in user)
+async changePassword(userId, currentPassword, newPassword) {
+  console.log('[AuthService.changePassword] Changing password for user:', userId);
+  
+  if (!userId || !currentPassword || !newPassword) {
+    throw new Error('All fields are required');
+  }
+
+  if (newPassword.length < 8) {
+    throw new Error('New password must be at least 8 characters');
+  }
+
+  if (currentPassword === newPassword) {
+    throw new Error('New password must be different from current password');
+  }
+
+  // Get user with password hash
+  const user = await this.prisma.user.findUnique({
+    where: { id: userId, isActive: true },
+    select: {
+      id: true,
+      email: true,
+      passwordHash: true,
+      role: true
+    }
+  });
+
+  if (!user) {
+    throw new Error('User not found or inactive');
+  }
+
+  // Verify current password
+  const isValid = await verifyPassword(currentPassword, user.passwordHash);
+  if (!isValid) {
+    throw new Error('Current password is incorrect');
+  }
+
+  // Hash new password
+  const newPasswordHash = await hashPassword(newPassword);
+
+  try {
+    await this.prisma.$transaction(async (tx) => {
+      // Update password
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: newPasswordHash,
+          updatedAt: new Date()
+        }
+      });
+
+      // Create audit log
+      await tx.auditLog.create({
+        data: {
+          action: 'PASSWORD_CHANGED',
+          entityType: 'USER',
+          entityId: userId,
+          description: 'User changed their password',
+          userRole: user.role,
+          userId: userId,
+          metadata: {
+            changedAt: new Date().toISOString(),
+            email: user.email
+          },
+          timestamp: new Date()
+        }
+      });
+    });
+
+    // Send email notification
+    try {
+      await sendEmailNotification({
+        to: user.email,
+        subject: 'Password Changed - Donation Management System',
+        html: `
+          <div style="font-family: Arial, sans-serif;">
+            <h3>Password Changed Successfully</h3>
+            <p>Your password has been changed successfully.</p>
+            <p>If you did not perform this action, please contact support immediately.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="color: #666; font-size: 12px;">
+              Security Tip: If you suspect any unauthorized access, please reset your password immediately.
+            </p>
+          </div>
+        `
+      });
+    } catch (emailError) {
+      console.warn('[AuthService.changePassword] Email notification failed:', emailError.message);
+    }
+
+    console.log('[AuthService.changePassword] Password changed successfully', {
+      userId
+    });
+
+    return { success: true, message: 'Password changed successfully' };
+    
+  } catch (error) {
+    console.error('[AuthService.changePassword] Failed:', error);
+    throw new Error('Failed to change password');
+  }
+}
+
+
+
+// Add this method to AuthService class
+async verifyResetToken(token) {
+  console.log('[AuthService.verifyResetToken] Verifying token');
+  
+  if (!token) {
+    return { valid: false, message: 'Token is required' };
+  }
+
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+
+  const user = await this.prisma.user.findFirst({
+    where: {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpiry: {
+        gte: new Date()
+      },
+      isActive: true
+    },
+    select: {
+      email: true,
+      name: true
+    }
+  });
+
+  if (!user) {
+    return { 
+      valid: false, 
+      message: 'Invalid or expired reset token' 
+    };
+  }
+
+  return { 
+    valid: true, 
+    email: user.email,
+    message: 'Token is valid'
+  };
+}
+
+// Add this method to AuthService class
+async resetPassword(token, password) {
+  console.log('[AuthService.resetPassword] Attempt');
+
+  if (!token || !password) {
+    throw new Error('Reset token and new password are required');
+  }
+
+  if (password.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
+
+  const user = await this.prisma.user.findFirst({
+    where: {
+      resetPasswordToken: hashedToken,
+      resetPasswordExpiry: {
+        gte: new Date()
+      },
+      isActive: true
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      passwordHash: true
+    }
+  });
+
+  if (!user) {
+    console.error('[PasswordReset] Invalid or expired token');
+    throw new Error('Invalid or expired reset link. Please request a new one.');
+  }
+
+  // Check if new password is same as old
+  const isSamePassword = await verifyPassword(password, user.passwordHash);
+  if (isSamePassword) {
+    throw new Error('New password must be different from current password');
+  }
+
+  const passwordHash = await hashPassword(password);
+
+  try {
+    // 🔧 FIX: Do everything in one transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      console.log('[PasswordReset] Starting transaction...');
+      
+      // 1. Update user password and clear reset fields
+      const updatedUser = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          resetPasswordToken: null,
+          resetPasswordExpiry: null,
+          updatedAt: new Date()
+        }
+      });
+
+      console.log('[PasswordReset] User password updated');
+
+      // 2. Create audit log INSIDE the transaction
+      const auditLog = await tx.auditLog.create({
+        data: {
+          action: 'PASSWORD_RESET_COMPLETED',
+          entityType: 'USER',
+          entityId: user.id,
+          description: 'User successfully reset password',
+          userRole: user.role,
+          userId: user.id,
+          metadata: {
+            resetCompletedAt: new Date().toISOString(),
+            email: user.email
+          },
+          timestamp: new Date()
+        }
+      });
+
+      console.log('[PasswordReset] Audit log created inside transaction:', auditLog.id);
+
+      return { updatedUser, auditLog };
+    }, {
+      maxWait: 10000, // Increase wait time
+      timeout: 10000  // Increase timeout to 10 seconds
+    });
+
+    console.log('[PasswordReset] Transaction completed successfully');
+
+    // 3. Send confirmation email (OUTSIDE transaction to avoid timeout)
+    try {
+      await sendEmailNotification({
+        to: user.email,
+        subject: 'Password Reset Successful',
+        html: `
+          <div style="font-family: Arial, sans-serif;">
+            <h3>Password Reset Confirmation</h3>
+            <p>Your password has been successfully reset.</p>
+            <p>If you did not perform this action, please contact support immediately.</p>
+          </div>
+        `
+      });
+      console.log('[PasswordReset] Confirmation email sent');
+    } catch (emailError) {
+      console.warn('[PasswordReset] Confirmation email failed:', emailError.message);
+      // Don't fail the reset if email fails
+    }
+
+    console.log('[PasswordReset] Password reset successful', {
+      userId: user.id
+    });
+
+    return { 
+      success: true, 
+      message: 'Password reset successful. You can now login with your new password.' 
+    };
+
+  } catch (transactionError) {
+    console.error('[PasswordReset] Transaction failed:', transactionError);
+    
+    // Handle specific transaction timeout error
+    if (transactionError.code === 'P2028') {
+      throw new Error('Reset operation timed out. Please try again.');
+    }
+    
+    throw new Error('Failed to reset password. Please try again.');
+  }
+}
+
 }

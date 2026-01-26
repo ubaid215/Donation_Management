@@ -12,6 +12,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
+    "create-admin": "node scripts/createKhanqahAdmin.js",
     "test": "jest"
   },
   "keywords": [],

@@ -44,7 +44,7 @@ export async function debugWhatsAppConfig() {
   console.log('Access Token Set:', !!WHATSAPP_CONFIG.ACCESS_TOKEN ? '✅ YES' : '❌ NO');
   console.log('Template Name:', WHATSAPP_CONFIG.TEMPLATE_NAME);
   console.log('API Version:', WHATSAPP_CONFIG.API_VERSION);
-  
+
   if (!WHATSAPP_CONFIG.ACCESS_TOKEN) {
     console.log('❌ Access Token is missing in environment variables!');
     return { configured: false, error: 'Access token missing' };
@@ -135,15 +135,15 @@ export async function listWhatsAppTemplates() {
 export async function checkWhatsAppHealth() {
   try {
     if (!WHATSAPP_CONFIG.ACCESS_TOKEN || !WHATSAPP_CONFIG.PHONE_NUMBER_ID) {
-      return { 
-        healthy: false, 
+      return {
+        healthy: false,
         error: 'WhatsApp not configured - missing credentials',
         configured: false
       };
     }
 
     const url = `https://graph.facebook.com/${WHATSAPP_CONFIG.API_VERSION}/${WHATSAPP_CONFIG.PHONE_NUMBER_ID}`;
-    
+
     const response = await axios.get(url, {
       headers: {
         'Authorization': `Bearer ${WHATSAPP_CONFIG.ACCESS_TOKEN}`
@@ -158,8 +158,8 @@ export async function checkWhatsAppHealth() {
 
   } catch (error) {
     console.error('❌ WhatsApp API health check failed:', error.response?.data || error.message);
-    return { 
-      healthy: false, 
+    return {
+      healthy: false,
       error: error.response?.data || error.message,
       configured: true // Credentials exist but something else is wrong
     };
@@ -192,13 +192,10 @@ export async function sendWhatsAppNotification({
       return { success: false, skipped: true, reason: 'Not configured' };
     }
 
-    // Format phone number (remove +, spaces, dashes)
-    const formattedPhone = to.replace(/[\s\-\+]/g, '');
-    
     // Ensure it starts with country code
-    const recipientPhone = formattedPhone.startsWith('92') 
-      ? formattedPhone 
-      : `92${formattedPhone}`;
+    const formattedPhone = to.replace(/[\s\-\+]/g, '');
+
+    const recipientPhone = formattedPhone;
 
     // Format date
     const formattedDate = new Date(date).toLocaleDateString('en-PK', {
@@ -234,7 +231,7 @@ export async function sendWhatsAppNotification({
         ]
       }
     };
-    
+
     console.log('📦 WhatsApp Payload:', JSON.stringify(payload, null, 2));
 
     console.log('📤 Sending WhatsApp message to:', recipientPhone);
@@ -269,7 +266,7 @@ export async function sendWhatsAppNotification({
     };
 
     console.error('❌ WhatsApp notification failed:', errorDetails);
-    
+
     // Provide helpful error messages
     if (errorDetails.code === 133010) {
       console.error('⚠️ WhatsApp failed: Account not registered');

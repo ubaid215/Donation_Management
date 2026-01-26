@@ -820,7 +820,7 @@ async sendDonationNotifications(donation) {
       if (result.success) {
         console.log('✅ WhatsApp notification sent:', result.messageId);
         
-        // Optional: Update donation record with WhatsApp status
+        // Update donation record with WhatsApp status
         await this.prisma.donation.update({
           where: { id: donation.id },
           data: {
@@ -829,14 +829,77 @@ async sendDonationNotifications(donation) {
             whatsappMessageId: result.messageId
           }
         }).catch(err => console.log('Note: Add whatsapp fields to schema if needed'));
+
+        // Create audit log for successful WhatsApp send
+        await createAuditLog({
+          action: 'WHATSAPP_SENT',
+          userId: donation.operatorId,
+          userRole: 'OPERATOR',
+          entityType: 'DONATION',
+          entityId: donation.id,
+          description: `WhatsApp notification sent to ${donation.donorPhone}`,
+          metadata: {
+            recipient: donation.donorPhone,
+            donorName: donation.donorName,
+            amount: donation.amount.toString(),
+            purpose: donation.purpose,
+            messageId: result.messageId,
+            timestamp: result.timestamp
+          }
+        }).catch(err => console.error('Failed to create WhatsApp audit log:', err));
+
       } else if (!result.skipped) {
         console.error('⚠️ WhatsApp failed:', result.error);
+        
+        // Update donation record with error
+        await this.prisma.donation.update({
+          where: { id: donation.id },
+          data: {
+            whatsappSent: false,
+            whatsappError: result.error || result.errorDetails?.message
+          }
+        }).catch(err => console.log('Note: Add whatsapp fields to schema if needed'));
+
+        // Create audit log for failed WhatsApp send
+        await createAuditLog({
+          action: 'WHATSAPP_FAILED',
+          userId: donation.operatorId,
+          userRole: 'OPERATOR',
+          entityType: 'DONATION',
+          entityId: donation.id,
+          description: `WhatsApp notification failed for ${donation.donorPhone}: ${result.error}`,
+          metadata: {
+            recipient: donation.donorPhone,
+            donorName: donation.donorName,
+            amount: donation.amount.toString(),
+            error: result.error,
+            errorCode: result.errorCode,
+            errorType: result.errorType,
+            errorDetails: result.errorDetails
+          }
+        }).catch(err => console.error('Failed to create WhatsApp failure audit log:', err));
       }
     } else {
       console.log('ℹ️ WhatsApp disabled - no valid credentials configured');
     }
   } catch (error) {
     console.error('WhatsApp notification error (non-critical):', error.message);
+    
+    // Create audit log for unexpected error
+    await createAuditLog({
+      action: 'WHATSAPP_FAILED',
+      userId: donation.operatorId,
+      userRole: 'OPERATOR',
+      entityType: 'DONATION',
+      entityId: donation.id,
+      description: `WhatsApp notification error: ${error.message}`,
+      metadata: {
+        recipient: donation.donorPhone,
+        donorName: donation.donorName,
+        error: error.message,
+        stack: error.stack
+      }
+    }).catch(err => console.error('Failed to create WhatsApp error audit log:', err));
   }
 }
 }

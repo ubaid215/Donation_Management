@@ -9,9 +9,10 @@ export const createDonationSchema = [
   body('donorPhone')
     .trim()
     .notEmpty().withMessage('Phone number is required')
-    .matches(/^[0-9]{10,15}$/).withMessage('Valid 10-15 digit phone number required'),
+    .matches(/^\+[1-9]\d{7,19}$/)
+    .withMessage('Valid international phone number required (e.g., +923001234567, +14155551234)'),
   
-  // NEW: Email validation (optional field)
+  // Email validation (optional field)
   body('donorEmail')
     .optional({ nullable: true, checkFalsy: true })
     .trim()
@@ -118,6 +119,6 @@ export const donorPhoneSchema = [
     .trim()
     .notEmpty()
     .withMessage('Phone number is required')
-    .matches(/^[0-9+\-\s()]{10,15}$/)
-    .withMessage('Invalid phone number format (10-15 characters, can include +, -, spaces, parentheses)')
+    .matches(/^\+[1-9]\d{7,19}$/)
+    .withMessage('Valid international phone number required (e.g., +923001234567, +14155551234)')
 ];

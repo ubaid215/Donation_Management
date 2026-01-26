@@ -801,25 +801,42 @@ export class DonationService {
     });
   }
 
- async sendDonationNotifications(donation) {
+async sendDonationNotifications(donation) {
   try {
-    // Only send WhatsApp if credentials are configured
+    // Send WhatsApp notification with template
     if (process.env.WHATSAPP_ACCESS_TOKEN && 
         process.env.WHATSAPP_ACCESS_TOKEN !== 'your-whatsapp-bearer-token' &&
         donation.donorPhone) {
       
-      await sendWhatsAppNotification({
+      const result = await sendWhatsAppNotification({
         to: donation.donorPhone,
-        message: `Thank you for your donation of Rs ${donation.amount} for ${donation.purpose}. Your contribution is greatly appreciated.`
+        donorName: donation.donorName,
+        amount: donation.amount.toString(),
+        purpose: donation.purpose,
+        paymentMethod: donation.paymentMethod,
+        date: donation.date
       });
       
-      console.log('✅ WhatsApp notification sent');
+      if (result.success) {
+        console.log('✅ WhatsApp notification sent:', result.messageId);
+        
+        // Optional: Update donation record with WhatsApp status
+        await this.prisma.donation.update({
+          where: { id: donation.id },
+          data: {
+            whatsappSent: true,
+            whatsappSentAt: new Date(),
+            whatsappMessageId: result.messageId
+          }
+        }).catch(err => console.log('Note: Add whatsapp fields to schema if needed'));
+      } else if (!result.skipped) {
+        console.error('⚠️ WhatsApp failed:', result.error);
+      }
     } else {
       console.log('ℹ️ WhatsApp disabled - no valid credentials configured');
     }
   } catch (error) {
-    // Don't throw - just log the error so email still works
-    console.error('WhatsApp notification failed (non-critical):', error.message);
+    console.error('WhatsApp notification error (non-critical):', error.message);
   }
 }
 }

@@ -31,8 +31,8 @@ const WHATSAPP_CONFIG = {
   PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
   ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
   API_VERSION: 'v22.0',
-  TEMPLATE_NAME: 'donation_confirmation',
-  LANGUAGE_CODE: 'en'
+  TEMPLATE_NAME: 'receipt_confirm',
+  LANGUAGE_CODE: 'en_us'
 };
 
 /**
@@ -198,7 +198,7 @@ export async function sendWhatsAppNotification({
     const recipientPhone = formattedPhone;
 
     // Format date
-    const formattedDate = new Date(date).toLocaleDateString('en-PK', {
+    const formattedDate = new Date(date).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'

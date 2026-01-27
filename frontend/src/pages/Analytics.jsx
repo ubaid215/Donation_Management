@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
 import adminService from '../services/adminService.js'
-import DonationChart from '../components/dashboard/DonationChart.jsx'
+import DonationChart from '../components/Dashboard/DonationChart.jsx'
 import LoadingSpinner from '../components/Common/LoadingSpinner.jsx'
 import toast from 'react-hot-toast'
 

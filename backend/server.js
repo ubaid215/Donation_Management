@@ -16,6 +16,7 @@ import donationRoutes from './features/donations/donation.routes.js';
 import adminRoutes from './features/admin/admin.routes.js';
 import reportRoutes from './features/reports/reports.routes.js';
 import auditRoutes from './features/audit/audit.routes.js';
+import whatsappTestRoutes from './features/whatsapp/whatsapp-test.route.js';
 
 // Import prisma for health check
 import prisma from './config/prisma.js'; // Add this import
@@ -158,6 +159,7 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/whatsapp-test', whatsappTestRoutes);
 
 // ========== ERROR HANDLING ==========
 

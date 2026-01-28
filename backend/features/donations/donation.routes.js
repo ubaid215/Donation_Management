@@ -9,10 +9,14 @@ import {
   searchDonors,
   getDonorByPhone,
   getDonorSuggestions,
-  // NEW: Add email-related controller functions
   sendDonationReceiptEmail,
   resendDonationReceiptEmail,
-  getDonationEmailStatus
+  getDonationEmailStatus,
+  updateDonation,
+  getDonationHistory,
+  softDeleteDonation,
+  restoreDonation,
+  getDeletedDonations
 } from './donation.controller.js';
 import { 
   createDonationSchema, 
@@ -20,7 +24,8 @@ import {
   donationIdSchema,
   donorSearchSchema,
   donorPhoneSchema,
-  // NEW: Import email validation schemas
+  updateDonationSchema,
+  deleteRestoreDonationSchema,
   sendEmailSchema
 } from './validation.js';
 import { validateRequest } from '../../middlewares/validation.js';
@@ -69,39 +74,6 @@ router.get(
   donorPhoneSchema,
   validateRequest,
   getDonorByPhone
-);
-
-// ===== EMAIL-RELATED ROUTES =====
-// These should come BEFORE /:id routes to avoid conflicts
-
-// Send receipt email for a donation (admin only)
-router.post(
-  '/:id/send-receipt',
-  authMiddleware,
-  adminOnlyMiddleware,
-  sendEmailSchema,
-  validateRequest,
-  sendDonationReceiptEmail
-);
-
-// Resend receipt email (admin only)
-router.post(
-  '/:id/resend-receipt',
-  authMiddleware,
-  adminOnlyMiddleware,
-  sendEmailSchema,
-  validateRequest,
-  resendDonationReceiptEmail
-);
-
-// Get email status for a donation (admin only)
-router.get(
-  '/:id/email-status',
-  authMiddleware,
-  adminOnlyMiddleware,
-  donationIdSchema,
-  validateRequest,
-  getDonationEmailStatus
 );
 
 // ===== DONATION ANALYTICS ROUTES =====
@@ -155,9 +127,95 @@ router.get(
   getMyDonations
 );
 
-// ===== SINGLE DONATION ROUTES =====
-// This should be LAST to avoid route conflicts
+// ===== SINGLE DONATION ROUTES WITH SUB-ROUTES =====
+// These routes use the :id parameter and should be grouped together
+// IMPORTANT: These come after all static routes
 
+// EMAIL-RELATED ROUTES
+// Send receipt email for a donation (admin only)
+router.post(
+  '/:id/send-receipt',
+  authMiddleware,
+  adminOnlyMiddleware,
+  sendEmailSchema,
+  validateRequest,
+  sendDonationReceiptEmail
+);
+
+// Resend receipt email (admin only)
+router.post(
+  '/:id/resend-receipt',
+  authMiddleware,
+  adminOnlyMiddleware,
+  sendEmailSchema,
+  validateRequest,
+  resendDonationReceiptEmail
+);
+
+// Get email status for a donation (admin only)
+router.get(
+  '/:id/email-status',
+  authMiddleware,
+  adminOnlyMiddleware,
+  donationIdSchema,
+  validateRequest,
+  getDonationEmailStatus
+);
+
+// DONATION HISTORY ROUTE
+// Get donation history/audit trail
+router.get(
+  '/:id/history',
+  authMiddleware,
+  operatorScopeMiddleware, // Operators can view history of their own donations
+  donationIdSchema,
+  validateRequest,
+  getDonationHistory
+);
+
+// RESTORE ROUTE (must come before DELETE to avoid conflict)
+// Restore soft-deleted donation (admin only)
+router.post(
+  '/:id/restore',
+  authMiddleware,
+  adminOnlyMiddleware,
+  deleteRestoreDonationSchema,
+  validateRequest,
+  restoreDonation
+);
+
+// UPDATE DONATION ROUTE
+// Update donation (admin can update any, operators can update their own)
+router.put(
+  '/:id',
+  authMiddleware,
+  updateDonationSchema,
+  validateRequest,
+  updateDonation
+);
+
+// SOFT DELETE DONATION ROUTE
+// Soft delete donation (admin only)
+router.delete(
+  '/:id',
+  authMiddleware,
+  adminOnlyMiddleware,
+  deleteRestoreDonationSchema,
+  validateRequest,
+  softDeleteDonation
+);
+
+router.get(
+  '/deleted',
+  authMiddleware,
+  adminOnlyMiddleware,
+  donationFilterSchema,
+  validateRequest,
+  getDeletedDonations
+);
+
+// GET SINGLE DONATION ROUTE
+// This should be LAST to avoid route conflicts with the above sub-routes
 router.get(
   '/:id',
   authMiddleware,

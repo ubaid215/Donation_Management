@@ -17,8 +17,16 @@ export const useDonations = () => {
 export const DonationProvider = ({ children }) => {
   // ===== DONATION STATE =====
   const [donations, setDonations] = useState([])
+  const [deletedDonations, setDeletedDonations] = useState([]) // NEW: Deleted donations state
   const [loading, setLoading] = useState(false)
+  const [updating, setUpdating] = useState(false) // NEW: Update loading state
   const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    pages: 1
+  })
+  const [deletedPagination, setDeletedPagination] = useState({ // NEW: Deleted pagination
     page: 1,
     limit: 20,
     total: 0,
@@ -44,6 +52,9 @@ export const DonationProvider = ({ children }) => {
   // ===== EMAIL STATE =====
   const [emailSending, setEmailSending] = useState(false)
   const [emailStatus, setEmailStatus] = useState({})
+
+  // ===== DONATION HISTORY STATE =====
+  const [donationHistory, setDonationHistory] = useState({})
 
   // ===== DONATION OPERATIONS =====
   const fetchDonations = async (newFilters = {}) => {
@@ -72,6 +83,132 @@ export const DonationProvider = ({ children }) => {
       toast.error('Failed to fetch your donations')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // NEW: Fetch deleted donations (admin only)
+  const fetchDeletedDonations = async (filters = {}) => {
+    try {
+      setLoading(true)
+      const result = await donationService.getDeletedDonations(filters)
+      setDeletedDonations(result.donations)
+      setDeletedPagination(result.pagination)
+      return { success: true, data: result }
+    } catch (error) {
+      toast.error('Failed to fetch deleted donations')
+      return { success: false, error: error.message }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // NEW: Update donation
+  const updateDonation = async (id, updateData) => {
+    try {
+      setUpdating(true)
+      const result = await donationService.updateDonation(id, updateData)
+      
+      if (result.success) {
+        // Update donation in the donations list
+        setDonations(prev =>
+          prev.map(donation =>
+            donation.id === id ? result.donation : donation
+          )
+        )
+        
+        // Update in deleted donations list if it's there
+        setDeletedDonations(prev =>
+          prev.map(donation =>
+            donation.id === id ? result.donation : donation
+          )
+        )
+        
+        toast.success('Donation updated successfully')
+        return { success: true, donation: result.donation }
+      }
+      
+      return { success: false, error: 'Failed to update donation' }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to update donation'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  // NEW: Get donation history
+  const getDonationHistory = async (id) => {
+    try {
+      const result = await donationService.getDonationHistory(id)
+      
+      if (result.success) {
+        setDonationHistory(prev => ({
+          ...prev,
+          [id]: result.history
+        }))
+        return { success: true, history: result.history }
+      }
+      
+      return { success: false, error: 'Failed to get donation history' }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to get donation history'
+      console.error(message)
+      return { success: false, error: message }
+    }
+  }
+
+  // NEW: Soft delete donation
+  const deleteDonation = async (id, reason = '') => {
+    try {
+      setUpdating(true)
+      const result = await donationService.deleteDonation(id, reason)
+      
+      if (result.success) {
+        // Remove from active donations list
+        setDonations(prev => prev.filter(donation => donation.id !== id))
+        
+        // Add to deleted donations list
+        setDeletedDonations(prev => [result.donation, ...prev])
+        
+        toast.success('Donation deleted successfully')
+        return { success: true, donation: result.donation }
+      }
+      
+      return { success: false, error: 'Failed to delete donation' }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to delete donation'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  // NEW: Restore deleted donation
+  const restoreDonation = async (id, reason = '') => {
+    try {
+      setUpdating(true)
+      const result = await donationService.restoreDonation(id, reason)
+      
+      if (result.success) {
+        // Remove from deleted donations list
+        setDeletedDonations(prev => prev.filter(donation => donation.id !== id))
+        
+        // Add back to active donations list
+        setDonations(prev => [result.donation, ...prev])
+        
+        toast.success('Donation restored successfully')
+        return { success: true, donation: result.donation }
+      }
+      
+      return { success: false, error: 'Failed to restore donation' }
+    } catch (error) {
+      const message = error.response?.data?.error || 'Failed to restore donation'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setUpdating(false)
     }
   }
 
@@ -388,12 +525,20 @@ export const DonationProvider = ({ children }) => {
   const value = {
     // Donation state & methods
     donations,
+    deletedDonations, // NEW
     loading,
+    updating, // NEW
     pagination,
+    deletedPagination, // NEW
     filters,
     fetchDonations,
     fetchMyDonations,
+    fetchDeletedDonations, // NEW
     createDonation,
+    updateDonation, // NEW
+    getDonationHistory, // NEW
+    deleteDonation, // NEW
+    restoreDonation, // NEW
     setFilters,
     clearFilters,
     
@@ -422,7 +567,10 @@ export const DonationProvider = ({ children }) => {
     createCategory,
     updateCategory,
     deleteCategory,
-    toggleCategoryStatus
+    toggleCategoryStatus,
+    
+    // History state
+    donationHistory // NEW
   }
 
   return (

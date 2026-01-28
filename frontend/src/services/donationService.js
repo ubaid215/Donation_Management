@@ -21,6 +21,29 @@ const donationService = {
     return await api.get(`/donations/${id}`)
   },
 
+  // ===== NEW: UPDATE DONATION OPERATIONS =====
+  updateDonation: async (id, updateData) => {
+    return await api.put(`/donations/${id}`, updateData)
+  },
+
+  getDonationHistory: async (id) => {
+    return await api.get(`/donations/${id}/history`)
+  },
+
+  // ===== NEW: DELETE/RESTORE OPERATIONS =====
+  deleteDonation: async (id, reason = '') => {
+    return await api.delete(`/donations/${id}`, { data: { reason } })
+  },
+
+  restoreDonation: async (id, reason = '') => {
+    return await api.post(`/donations/${id}/restore`, { reason })
+  },
+
+  getDeletedDonations: async (filters = {}) => {
+    const params = new URLSearchParams(filters).toString()
+    return await api.get(`/donations/deleted?${params}`)
+  },
+
   // ===== EMAIL OPERATIONS =====
   sendReceiptEmail: async (donationId, customMessage = '') => {
     return await api.post(`/donations/${donationId}/send-receipt`, {

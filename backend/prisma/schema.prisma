@@ -27,8 +27,12 @@ enum AuditAction {
   EMAIL_SENT              // For receipt emails
   EMAIL_RESENT            // For resend operations
   EMAIL_FAILED            // For failed email attempts
-  WHATSAPP_SENT           // NEW: WhatsApp notification sent
-  WHATSAPP_FAILED         // NEW: WhatsApp notification failed
+  WHATSAPP_SENT           //  WhatsApp notification sent
+  WHATSAPP_FAILED         // WhatsApp notification failed
+  DONATION_UPDATED
+  DONATION_DELETED
+  DONATION_RESTORED
+  WHATSAPP_SKIPPED
   OPERATOR_LOGIN
   ADMIN_LOGIN
   PDF_EXPORTED
@@ -42,70 +46,75 @@ enum AuditAction {
 }
 
 model User {
-  id            String        @id @default(uuid())
-  email         String        @unique
+  id            String   @id @default(uuid())
+  email         String   @unique
   passwordHash  String
   name          String
   phone         String?
-  role          Role          @default(OPERATOR)
-  isActive      Boolean       @default(true)
-  // 🔐 ADD THESE FOR PASSWORD RESET
-  resetPasswordToken    String?  @unique
-  resetPasswordExpiry   DateTime?
+  role          Role     @default(OPERATOR)
+  isActive      Boolean  @default(true)
+
+  resetPasswordToken   String?   @unique
+  resetPasswordExpiry  DateTime?
+
   lastLogin     DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
-  // Relations
-  donations     Donation[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // ✅ EXPLICIT BACK-RELATIONS
+  donationsCreated Donation[] @relation("OperatorDonations")
+  donationsDeleted Donation[] @relation("DeletedDonations")
+
   auditLogs     AuditLog[]
-  
+
   @@map("users")
 }
+
 
 model Donation {
   id              String        @id @default(uuid())
   donorName       String
-  donorEmail      String?       // Optional email field for donor
+  donorEmail      String?
   donorPhone      String
   amount          Decimal       @db.Decimal(10, 2)
   purpose         String
   paymentMethod   PaymentMethod
   notes           String?
   date            DateTime      @default(now())
-  
-  // Email tracking fields
-  emailSent       Boolean       @default(false)  // Track if receipt email was sent
-  emailSentAt     DateTime?     // Timestamp when email was sent
-  emailError      String?       // Store error message if email failed
-  receiptNumber   String?       // Optional custom receipt number
-  
-  // WhatsApp tracking fields - NEW
-  whatsappSent       Boolean       @default(false)  // Track if WhatsApp notification was sent
-  whatsappSentAt     DateTime?     // Timestamp when WhatsApp was sent
-  whatsappMessageId  String?       // WhatsApp message ID from Meta API
-  whatsappError      String?       // Store error message if WhatsApp failed
-  
-  // Foreign keys
+
+  emailSent       Boolean       @default(false)
+  emailSentAt     DateTime?
+  emailError      String?
+  receiptNumber   String?
+
+  whatsappSent       Boolean       @default(false)
+  whatsappSentAt     DateTime?
+  whatsappMessageId  String?
+  whatsappError      String?
+
   operatorId      String
   categoryId      String?
-  
-  // Relations
-  operator        User          @relation(fields: [operatorId], references: [id])
+  deletedBy       String?
+
+  // ✅ NAMED RELATIONS (CRITICAL)
+  operator        User  @relation("OperatorDonations", fields: [operatorId], references: [id])
+  deletedByUser   User? @relation("DeletedDonations", fields: [deletedBy], references: [id])
+
   category        DonationCategory? @relation(fields: [categoryId], references: [id])
-  
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  
+
+  isDeleted       Boolean  @default(false)
+  deletedAt       DateTime?
+  deletionReason  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
   @@map("donations")
   @@index([operatorId])
   @@index([categoryId])
-  @@index([date])
-  @@index([donorEmail])
-  @@index([donorPhone])
-  @@index([emailSent])
-  @@index([whatsappSent])  // NEW: Index for WhatsApp tracking
+  @@index([deletedBy])
 }
+
 
 model DonationCategory {
   id            String        @id @default(uuid())

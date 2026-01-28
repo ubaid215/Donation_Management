@@ -1,3 +1,4 @@
+// features/donations/services.js
 import prisma from '../../config/prisma.js';
 import { createAuditLog } from '../../utils/auditLogger.js';
 import { sendWhatsAppNotification } from '../../utils/notification.js';
@@ -80,7 +81,8 @@ export class DonationService {
           paymentMethod: donationData.paymentMethod,
           donorName: donationData.donorName,
           donorPhone: donationData.donorPhone,
-          donorEmail: donationData.donorEmail || null
+          donorEmail: donationData.donorEmail || null,
+          sendWhatsApp: donationData.sendWhatsApp || true // Log WhatsApp preference
         },
         ipAddress: ipAddress
       });
@@ -88,8 +90,31 @@ export class DonationService {
       return newDonation;
     });
 
-    // Send notifications (non-blocking)
-    this.sendDonationNotifications(donation);
+    // Send notifications (non-blocking) - Check if WhatsApp should be sent
+    const shouldSendWhatsApp = donationData.sendWhatsApp !== false; // Default to true if not specified
+
+    if (shouldSendWhatsApp) {
+      this.sendDonationNotifications(donation);
+    } else {
+      console.log('ℹ️ WhatsApp notification skipped as per admin preference');
+
+      // Create audit log for skipped WhatsApp
+      await createAuditLog({
+        action: 'WHATSAPP_SKIPPED',
+        userId: operatorId,
+        userRole: 'ADMIN',
+        entityType: 'DONATION',
+        entityId: donation.id,
+        description: `WhatsApp notification skipped for ${donation.donorName} (admin preference)`,
+        metadata: {
+          recipient: donation.donorPhone,
+          donorName: donation.donorName,
+          amount: donation.amount,
+          purpose: donation.purpose,
+          reason: 'Admin disabled WhatsApp notification during donation creation'
+        }
+      }).catch(err => console.error('Failed to create WhatsApp skipped audit log:', err));
+    }
 
     // NEW: Automatically send email receipt if email is provided
     if (donation.donorEmail) {
@@ -201,9 +226,217 @@ export class DonationService {
         },
         ipAddress
       }).catch(err => console.error('Failed to create audit log:', err));
-
       throw error;
     }
+  }
+
+
+  async updateDonation(donationId, updateData, userId, userRole, ipAddress = null) {
+    return await this.prisma.$transaction(async (tx) => {
+      // First, get the existing donation
+      const existingDonation = await tx.donation.findUnique({
+        where: { id: donationId },
+        include: {
+          operator: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      if (!existingDonation) {
+        throw new Error('Donation not found');
+      }
+
+      // Check permissions
+      // Only admins can update any donation, operators can only update their own
+      if (userRole === 'OPERATOR' && existingDonation.operatorId !== userId) {
+        throw new Error('You can only update your own donations');
+      }
+
+      // Check if donation is soft deleted
+      if (existingDonation.isDeleted) {
+        throw new Error('Cannot update a deleted donation. Restore it first.');
+      }
+
+      // Prepare update data
+      const updatePayload = {};
+
+      // Handle category if purpose is being updated
+      if (updateData.purpose && updateData.purpose !== existingDonation.purpose) {
+        let categoryId = null;
+        let category = await tx.donationCategory.findFirst({
+          where: {
+            name: updateData.purpose,
+            isActive: true
+          }
+        });
+
+        if (!category) {
+          // Create category if it doesn't exist
+          category = await tx.donationCategory.create({
+            data: {
+              name: updateData.purpose,
+              description: `Donations for ${updateData.purpose}`,
+              isActive: true
+            }
+          });
+        }
+        categoryId = category.id;
+        updatePayload.categoryId = categoryId;
+        updatePayload.purpose = updateData.purpose;
+      }
+
+      // Handle other fields
+      if (updateData.donorName !== undefined) {
+        updatePayload.donorName = updateData.donorName;
+      }
+
+      if (updateData.donorPhone !== undefined) {
+        updatePayload.donorPhone = updateData.donorPhone;
+        // Reset WhatsApp status if phone is changed
+        if (updateData.donorPhone !== existingDonation.donorPhone) {
+          updatePayload.whatsappSent = false;
+          updatePayload.whatsappSentAt = null;
+          updatePayload.whatsappMessageId = null;
+          updatePayload.whatsappError = null;
+        }
+      }
+
+      if (updateData.donorEmail !== undefined) {
+        updatePayload.donorEmail = updateData.donorEmail;
+        // Reset email status if email is changed
+        if (updateData.donorEmail !== existingDonation.donorEmail) {
+          updatePayload.emailSent = false;
+          updatePayload.emailSentAt = null;
+          updatePayload.emailError = null;
+        }
+      }
+
+      if (updateData.amount !== undefined) {
+        updatePayload.amount = parseFloat(updateData.amount);
+      }
+
+      if (updateData.paymentMethod !== undefined) {
+        updatePayload.paymentMethod = updateData.paymentMethod;
+      }
+
+      if (updateData.notes !== undefined) {
+        updatePayload.notes = updateData.notes;
+      }
+
+      if (updateData.receiptNumber !== undefined) {
+        updatePayload.receiptNumber = updateData.receiptNumber;
+      }
+
+      // If no changes, return existing donation
+      if (Object.keys(updatePayload).length === 0) {
+        return existingDonation;
+      }
+
+      // Update the donation
+      const updatedDonation = await tx.donation.update({
+        where: { id: donationId },
+        data: updatePayload,
+        include: {
+          operator: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          category: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // Log the update action
+      await createAuditLog({
+        action: 'DONATION_UPDATED',
+        userId: userId,
+        userRole: userRole,
+        entityType: 'DONATION',
+        entityId: donationId,
+        description: `Donation updated for ${updatedDonation.donorName}`,
+        metadata: {
+          previousValues: {
+            donorName: existingDonation.donorName,
+            donorPhone: existingDonation.donorPhone,
+            donorEmail: existingDonation.donorEmail,
+            amount: existingDonation.amount,
+            purpose: existingDonation.purpose,
+            paymentMethod: existingDonation.paymentMethod,
+            notes: existingDonation.notes,
+            receiptNumber: existingDonation.receiptNumber
+          },
+          newValues: updatePayload,
+          updatedBy: userRole === 'ADMIN' ? 'Admin' : existingDonation.operator.name,
+          operatorId: existingDonation.operatorId
+        },
+        ipAddress: ipAddress
+      });
+
+      // Send email notification if email was added and not previously sent
+      if (updateData.donorEmail &&
+        (!existingDonation.emailSent || updateData.donorEmail !== existingDonation.donorEmail)) {
+        this.sendReceiptEmailAsync(donationId, userId, ipAddress);
+      }
+
+      return updatedDonation;
+    });
+  }
+
+
+  async getDonationHistory(donationId, userId, userRole) {
+    // First, check if donation exists and user has permission
+    const donation = await this.prisma.donation.findUnique({
+      where: { id: donationId },
+      select: { operatorId: true }
+    });
+
+    if (!donation) {
+      throw new Error('Donation not found');
+    }
+
+    // Check permissions
+    if (userRole === 'OPERATOR' && donation.operatorId !== userId) {
+      throw new Error('Access denied');
+    }
+
+    // Get audit logs for this donation
+    const history = await this.prisma.auditLog.findMany({
+      where: {
+        entityType: 'DONATION',
+        entityId: donationId,
+        action: {
+          in: ['DONATION_CREATED', 'DONATION_UPDATED', 'EMAIL_SENT', 'EMAIL_RESENT', 'EMAIL_FAILED']
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        action: true,
+        description: true,
+        metadata: true,
+        createdAt: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+            role: true
+          }
+        }
+      }
+    });
+
+    return history;
   }
 
   // NEW: Async email sending (non-blocking for donation creation)
@@ -298,7 +531,7 @@ export class DonationService {
     }
   }
 
-  // NEW: Get single donation (needed for controller)
+
   async getDonation(donationId, user) {
     const donation = await this.prisma.donation.findUnique({
       where: { id: donationId },
@@ -494,13 +727,13 @@ export class DonationService {
           id: true,
           donorName: true,
           donorPhone: true,
-          donorEmail: true, // NEW: Include email
+          donorEmail: true,
           amount: true,
           purpose: true,
           paymentMethod: true,
           date: true,
           notes: true,
-          emailSent: true, // NEW: Email status
+          emailSent: true,
           emailSentAt: true
         }
       }),
@@ -801,105 +1034,106 @@ export class DonationService {
     });
   }
 
-async sendDonationNotifications(donation) {
-  try {
-    // Send WhatsApp notification with template
-    if (process.env.WHATSAPP_ACCESS_TOKEN && 
+  async sendDonationNotifications(donation) {
+    try {
+      // Send WhatsApp notification with template
+      if (process.env.WHATSAPP_ACCESS_TOKEN &&
         process.env.WHATSAPP_ACCESS_TOKEN !== 'your-whatsapp-bearer-token' &&
         donation.donorPhone) {
-      
-      const result = await sendWhatsAppNotification({
-        to: donation.donorPhone,
-        donorName: donation.donorName,
-        amount: donation.amount.toString(),
-        purpose: donation.purpose,
-        paymentMethod: donation.paymentMethod,
-        date: donation.date
+
+        const result = await sendWhatsAppNotification({
+          to: donation.donorPhone,
+          donorName: donation.donorName,
+          amount: donation.amount.toString(),
+          purpose: donation.purpose,
+          paymentMethod: donation.paymentMethod,
+          date: donation.date
+        });
+
+        if (result.success) {
+          console.log('✅ WhatsApp notification sent:', result.messageId);
+
+          // Update donation record with WhatsApp status
+          await this.prisma.donation.update({
+            where: { id: donation.id },
+            data: {
+              whatsappSent: true,
+              whatsappSentAt: new Date(),
+              whatsappMessageId: result.messageId,
+              whatsappError: null
+            }
+          });
+
+          // Create audit log for successful WhatsApp send
+          await createAuditLog({
+            action: 'WHATSAPP_SENT',
+            userId: donation.operatorId,
+            userRole: 'OPERATOR',
+            entityType: 'DONATION',
+            entityId: donation.id,
+            description: `WhatsApp notification sent to ${donation.donorPhone}`,
+            metadata: {
+              recipient: donation.donorPhone,
+              donorName: donation.donorName,
+              amount: donation.amount.toString(),
+              purpose: donation.purpose,
+              messageId: result.messageId,
+              timestamp: result.timestamp
+            }
+          });
+
+        } else if (!result.skipped) {
+          console.error('⚠️ WhatsApp failed:', result.error);
+
+          // Update donation record with error
+          await this.prisma.donation.update({
+            where: { id: donation.id },
+            data: {
+              whatsappSent: false,
+              whatsappError: result.error || result.errorDetails?.message
+            }
+          });
+
+          // Create audit log for failed WhatsApp send
+          await createAuditLog({
+            action: 'WHATSAPP_FAILED',
+            userId: donation.operatorId,
+            userRole: 'OPERATOR',
+            entityType: 'DONATION',
+            entityId: donation.id,
+            description: `WhatsApp notification failed for ${donation.donorPhone}: ${result.error}`,
+            metadata: {
+              recipient: donation.donorPhone,
+              donorName: donation.donorName,
+              amount: donation.amount.toString(),
+              error: result.error,
+              errorCode: result.errorCode,
+              errorType: result.errorType,
+              errorDetails: result.errorDetails
+            }
+          });
+        }
+      } else {
+        console.log('ℹ️ WhatsApp disabled - no valid credentials configured');
+      }
+    } catch (error) {
+      console.error('WhatsApp notification error (non-critical):', error.message);
+
+      // Create audit log for unexpected error
+      await createAuditLog({
+        action: 'WHATSAPP_FAILED',
+        userId: donation.operatorId,
+        userRole: 'OPERATOR',
+        entityType: 'DONATION',
+        entityId: donation.id,
+        description: `WhatsApp notification error: ${error.message}`,
+        metadata: {
+          recipient: donation.donorPhone,
+          donorName: donation.donorName,
+          error: error.message,
+          stack: error.stack
+        }
       });
-      
-      if (result.success) {
-        console.log('✅ WhatsApp notification sent:', result.messageId);
-        
-        // Update donation record with WhatsApp status
-        await this.prisma.donation.update({
-          where: { id: donation.id },
-          data: {
-            whatsappSent: true,
-            whatsappSentAt: new Date(),
-            whatsappMessageId: result.messageId
-          }
-        }).catch(err => console.log('Note: Add whatsapp fields to schema if needed'));
-
-        // Create audit log for successful WhatsApp send
-        await createAuditLog({
-          action: 'WHATSAPP_SENT',
-          userId: donation.operatorId,
-          userRole: 'OPERATOR',
-          entityType: 'DONATION',
-          entityId: donation.id,
-          description: `WhatsApp notification sent to ${donation.donorPhone}`,
-          metadata: {
-            recipient: donation.donorPhone,
-            donorName: donation.donorName,
-            amount: donation.amount.toString(),
-            purpose: donation.purpose,
-            messageId: result.messageId,
-            timestamp: result.timestamp
-          }
-        }).catch(err => console.error('Failed to create WhatsApp audit log:', err));
-
-      } else if (!result.skipped) {
-        console.error('⚠️ WhatsApp failed:', result.error);
-        
-        // Update donation record with error
-        await this.prisma.donation.update({
-          where: { id: donation.id },
-          data: {
-            whatsappSent: false,
-            whatsappError: result.error || result.errorDetails?.message
-          }
-        }).catch(err => console.log('Note: Add whatsapp fields to schema if needed'));
-
-        // Create audit log for failed WhatsApp send
-        await createAuditLog({
-          action: 'WHATSAPP_FAILED',
-          userId: donation.operatorId,
-          userRole: 'OPERATOR',
-          entityType: 'DONATION',
-          entityId: donation.id,
-          description: `WhatsApp notification failed for ${donation.donorPhone}: ${result.error}`,
-          metadata: {
-            recipient: donation.donorPhone,
-            donorName: donation.donorName,
-            amount: donation.amount.toString(),
-            error: result.error,
-            errorCode: result.errorCode,
-            errorType: result.errorType,
-            errorDetails: result.errorDetails
-          }
-        }).catch(err => console.error('Failed to create WhatsApp failure audit log:', err));
-      }
-    } else {
-      console.log('ℹ️ WhatsApp disabled - no valid credentials configured');
     }
-  } catch (error) {
-    console.error('WhatsApp notification error (non-critical):', error.message);
-    
-    // Create audit log for unexpected error
-    await createAuditLog({
-      action: 'WHATSAPP_FAILED',
-      userId: donation.operatorId,
-      userRole: 'OPERATOR',
-      entityType: 'DONATION',
-      entityId: donation.id,
-      description: `WhatsApp notification error: ${error.message}`,
-      metadata: {
-        recipient: donation.donorPhone,
-        donorName: donation.donorName,
-        error: error.message,
-        stack: error.stack
-      }
-    }).catch(err => console.error('Failed to create WhatsApp error audit log:', err));
   }
-}
 }

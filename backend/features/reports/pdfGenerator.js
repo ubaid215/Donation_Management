@@ -4,6 +4,12 @@ export class PDFReportGenerator {
   constructor() {
     this.doc = null;
     this.organizationName = process.env.ORG_NAME || 'Donation Management Khanqah';
+    this.primaryColor = '#1e40af';
+    this.secondaryColor = '#3b82f6';
+    this.accentColor = '#60a5fa';
+    this.textColor = '#1f2937';
+    this.lightGray = '#f3f4f6';
+    this.darkGray = '#6b7280';
   }
 
   async generateDonationReport(donations, filters, organizationName = this.organizationName) {
@@ -13,13 +19,17 @@ export class PDFReportGenerator {
         this.doc = new PDFDocument({ 
           margin: 50,
           size: 'A4',
-          bufferPages: true  // Important: Enable page buffering
+          bufferPages: true,
+          autoFirstPage: false
         });
 
         this.doc.on('data', chunk => chunks.push(chunk));
         this.doc.on('end', () => resolve(Buffer.concat(chunks)));
         this.doc.on('error', reject);
 
+        // Add first page manually
+        this.doc.addPage();
+        
         this.generateHeader(organizationName);
         this.generateFilterSummary(filters);
         this.generateDonationTable(donations);
@@ -36,32 +46,59 @@ export class PDFReportGenerator {
   }
 
   generateHeader(organizationName) {
-    // Organization header
+    // Decorative top bar
     this.doc
-      .fontSize(20)
+      .rect(0, 0, this.doc.page.width, 8)
+      .fill(this.primaryColor);
+
+    this.doc
+      .rect(0, 8, this.doc.page.width, 4)
+      .fill(this.accentColor);
+
+    this.doc.moveDown(2);
+
+    // Organization header with background
+    const headerY = this.doc.y;
+    this.doc
+      .roundedRect(50, headerY, this.doc.page.width - 100, 60, 5)
+      .fill(this.lightGray);
+
+    this.doc
+      .fontSize(22)
       .font('Helvetica-Bold')
-      .fillColor('#1e40af')
-      .text(organizationName, { align: 'center' })
-      .moveDown(0.5);
+      .fillColor(this.primaryColor)
+      .text(organizationName, 50, headerY + 15, { 
+        align: 'center',
+        width: this.doc.page.width - 100
+      });
 
     // Report title
     this.doc
-      .fontSize(16)
+      .fontSize(14)
       .font('Helvetica')
-      .fillColor('#000000')
-      .text('Donation Report', { align: 'center' })
-      .moveDown(1);
+      .fillColor(this.textColor)
+      .text('Donation Report', 50, headerY + 42, { 
+        align: 'center',
+        width: this.doc.page.width - 100
+      });
 
-    // Report date
+    this.doc.moveDown(3);
+
+    // Report metadata
     this.doc
-      .fontSize(10)
-      .fillColor('#666666')
-      .text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'center' })
-      .moveDown(0.5);
+      .fontSize(9)
+      .font('Helvetica')
+      .fillColor(this.darkGray)
+      .text(`Report Generated: ${new Date().toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })}`, { align: 'center' });
 
-    // Separator line
-    this.drawHorizontalLine();
-    this.doc.moveDown(1);
+    this.doc.moveDown(1.5);
   }
 
   generateFilterSummary(filters) {
@@ -72,217 +109,353 @@ export class PDFReportGenerator {
 
     if (activeFilters.length === 0) return;
 
+    const startY = this.doc.y;
+
+    // Filter box header
     this.doc
-      .fontSize(10)
+      .fontSize(11)
       .font('Helvetica-Bold')
-      .text('Filter Summary:', { continued: false })
-      .moveDown(0.3);
+      .fillColor(this.primaryColor)
+      .text('Applied Filters', 60, startY + 10);
 
-    this.doc.font('Helvetica').fontSize(9);
+    this.doc.moveDown(0.5);
 
-    activeFilters.forEach(([key, value]) => {
-      switch(key) {
-        case 'startDate':
-          this.doc.text(`From: ${value}`);
-          break;
-        case 'endDate':
-          this.doc.text(`To: ${value}`);
-          break;
-        case 'operatorId':
-          this.doc.text(`Operator ID: ${value}`);
-          break;
-        case 'purpose':
-          this.doc.text(`Purpose: ${value}`);
-          break;
-        case 'paymentMethod':
-          this.doc.text(`Payment Method: ${value}`);
-          break;
-        case 'minAmount':
-          this.doc.text(`Minimum Amount: RS ${parseFloat(value).toFixed(2)}`);
-          break;
-        case 'maxAmount':
-          this.doc.text(`Maximum Amount: RS ${parseFloat(value).toFixed(2)}`);
-          break;
-        default:
-          this.doc.text(`${key}: ${value}`);
+    this.doc.font('Helvetica').fontSize(9).fillColor(this.textColor);
+
+    const filterLabels = {
+      startDate: 'From Date',
+      endDate: 'To Date',
+      operatorId: 'Operator ID',
+      purpose: 'Purpose',
+      paymentMethod: 'Payment Method',
+      minAmount: 'Min Amount',
+      maxAmount: 'Max Amount'
+    };
+
+    activeFilters.forEach(([key, value], index) => {
+      const label = filterLabels[key] || key;
+      let displayValue = value;
+
+      if (key === 'minAmount' || key === 'maxAmount') {
+        displayValue = `Rs ${parseFloat(value).toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`;
       }
+
+      // Alternate background for readability
+      if (index % 2 === 0) {
+        this.doc
+          .rect(55, this.doc.y - 3, this.doc.page.width - 110, 15)
+          .fill('#fafafa');
+      }
+
+      this.doc
+        .fillColor(this.textColor)
+        .text(`${label}: `, 60, this.doc.y, { continued: true })
+        .font('Helvetica-Bold')
+        .text(displayValue);
+      
+      this.doc.font('Helvetica');
     });
 
-    this.doc.moveDown(1);
+    const boxHeight = this.doc.y - startY + 15;
+    this.doc
+      .roundedRect(50, startY, this.doc.page.width - 100, boxHeight, 3)
+      .stroke(this.accentColor);
+
+    this.doc.moveDown(1.5);
   }
 
   generateDonationTable(donations) {
     if (!donations || donations.length === 0) {
+      const emptyY = this.doc.y;
+      this.doc
+        .roundedRect(50, emptyY, this.doc.page.width - 100, 60, 5)
+        .fill(this.lightGray);
+
       this.doc
         .fontSize(12)
-        .font('Helvetica')
-        .fillColor('#666666')
-        .text('No donations found for the selected criteria.', { align: 'center' })
-        .moveDown(1);
+        .font('Helvetica-Oblique')
+        .fillColor(this.darkGray)
+        .text('No donations found for the selected criteria.', 50, emptyY + 25, { 
+          align: 'center',
+          width: this.doc.page.width - 100
+        });
+
+      this.doc.moveDown(3);
       return;
     }
 
-    const tableTop = this.doc.y;
-    const headers = ['Date', 'Donor', 'Phone', 'Amount', 'Purpose', 'Payment', 'Operator'];
-    const columnWidths = [60, 80, 80, 60, 90, 70, 80];
+    // Section header
+    this.doc
+      .fontSize(13)
+      .font('Helvetica-Bold')
+      .fillColor(this.primaryColor)
+      .text('Donation Records', { continued: false });
+
+    this.doc.moveDown(0.8);
+
+    const actualTableTop = this.doc.y;
+    const headers = ['Date', 'Donor Name', 'Phone', 'Amount', 'Purpose', 'Payment', 'Operator'];
+    const columnWidths = [60, 85, 70, 65, 80, 70, 70];
     const rowHeight = 20;
 
-    // Ensure we have enough space for at least one row
-    if (tableTop + (rowHeight * 2) > this.doc.page.height - 100) {
-      this.doc.addPage();
-      this.generateTableHeader(tableTop, headers, columnWidths, rowHeight);
-    } else {
-      this.generateTableHeader(tableTop, headers, columnWidths, rowHeight);
-    }
+    // Generate table header on first page
+    this.generateTableHeader(actualTableTop, headers, columnWidths, rowHeight);
 
     // Table rows
-    let y = tableTop + rowHeight + 10;
-    let currentPage = 1;
+    let y = this.doc.y + 5;
+    let rowIndex = 0;
 
-    donations.forEach((donation, rowIndex) => {
-      // Check if we need a new page
-      if (y + rowHeight > this.doc.page.height - 100) {
+    donations.forEach((donation) => {
+      // Check if we need a new page - leave more space for summary at bottom
+      if (y + rowHeight + 150 > this.doc.page.height - 80) {
         this.doc.addPage();
         y = 50;
-        // Add headers to new page
         this.generateTableHeader(50, headers, columnWidths, rowHeight);
-        y += rowHeight + 10;
-        currentPage++;
+        y = this.doc.y + 5;
+      }
+
+      // Alternate row background
+      if (rowIndex % 2 === 0) {
+        this.doc
+          .rect(50, y - 3, this.doc.page.width - 100, rowHeight)
+          .fill('#fafafa');
+      }
+
+      // Format payment method to avoid line breaks
+      let paymentMethod = donation.paymentMethod || 'CASH';
+      if (paymentMethod === 'BANK_TRANSFER') {
+        paymentMethod = 'Bank Transfer';
       }
 
       const rowData = [
-        new Date(donation.date).toLocaleDateString('en-IN'),
-        (donation.donorName || 'Anonymous').substring(0, 20),
-        donation.donorPhone || 'N/A',
-        `RS ${parseFloat(donation.amount || 0).toFixed(2)}`,
-        (donation.purpose || 'General').substring(0, 25),
-        donation.paymentMethod || 'Cash',
-        donation.operator?.name?.substring(0, 15) || 'N/A'
+        new Date(donation.date).toLocaleDateString('en-GB', { 
+          day: '2-digit', 
+          month: 'short', 
+          year: 'numeric' 
+        }),
+        (donation.donorName || 'Anonymous').substring(0, 16),
+        (donation.donorPhone || 'N/A').substring(0, 13),
+        `Rs ${parseFloat(donation.amount || 0).toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`,
+        (donation.purpose || 'General').substring(0, 18),
+        paymentMethod.substring(0, 15),
+        donation.operator?.name?.substring(0, 13) || 'N/A'
       ];
 
       let x = 50;
-      this.doc.font('Helvetica').fontSize(8);
+      this.doc.font('Helvetica').fontSize(8).fillColor(this.textColor);
       
       rowData.forEach((cell, i) => {
-        this.doc.text(cell, x, y, { width: columnWidths[i], align: 'left' });
+        const align = i === 3 ? 'right' : 'left';
+        this.doc.text(cell, x, y, { 
+          width: columnWidths[i] - 5, 
+          align: align,
+          lineBreak: false  // Prevent text wrapping
+        });
         x += columnWidths[i];
       });
 
       y += rowHeight;
-
-      // Add subtle row separator
-      if (rowIndex < donations.length - 1) {
-        this.doc
-          .strokeColor('#f3f4f6')
-          .lineWidth(0.5)
-          .moveTo(50, y - 5)
-          .lineTo(550, y - 5)
-          .stroke();
-      }
+      rowIndex++;
     });
 
     // Calculate totals
     const totalAmount = donations.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+    const avgAmount = totalAmount / donations.length;
+    const maxAmount = Math.max(...donations.map(d => parseFloat(d.amount || 0)));
 
-    // Add some space before total
+    // Add spacing before summary
     y += 10;
 
-    // Total row
+    // Check if summary fits on current page
+    if (y + 120 > this.doc.page.height - 80) {
+      this.doc.addPage();
+      y = 50;
+    }
+
+    // Total amount box
+    this.doc
+      .roundedRect(50, y, this.doc.page.width - 100, 35, 5)
+      .fillAndStroke(this.lightGray, this.primaryColor);
+
     this.doc
       .font('Helvetica-Bold')
-      .fontSize(9)
-      .fillColor('#1e40af')
-      .text('TOTAL:', 50, y, { width: 270, align: 'right' })
-      .text(`RS ${totalAmount.toFixed(2)}`, 320, y, { width: 230, align: 'right' })
-      .moveDown(2);
+      .fontSize(11)
+      .fillColor(this.primaryColor)
+      .text('TOTAL AMOUNT:', 60, y + 12, { continued: true })
+      .fontSize(14)
+      .fillColor(this.primaryColor)
+      .text(` Rs ${totalAmount.toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      })}`, { align: 'right', width: this.doc.page.width - 140 });
 
-    // Summary statistics
+    y += 50;
+
+    // Summary statistics in cards
     this.doc
+      .fontSize(12)
       .font('Helvetica-Bold')
-      .fontSize(10)
-      .fillColor('#000000')
-      .text('Summary Statistics:', { continued: false })
-      .moveDown(0.5);
+      .fillColor(this.primaryColor)
+      .text('Summary Statistics', 50, y);
 
-    this.doc
-      .font('Helvetica')
-      .fontSize(9)
-      .text(`• Total Donations: ${donations.length}`)
-      .text(`• Total Amount: RS ${totalAmount.toFixed(2)}`)
-      .text(`• Average Donation: RS ${(totalAmount / donations.length).toFixed(2)}`);
+    y += 25;
 
-    // Add page count to metadata for footer
-    this.currentPageCount = currentPage;
+    const stats = [
+      { 
+        label: 'Total Donations', 
+        value: donations.length.toString(),
+        icon: '📊' 
+      },
+      { 
+        label: 'Average Donation', 
+        value: `Rs ${avgAmount.toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`,
+        icon: '📈' 
+      },
+      { 
+        label: 'Highest Donation', 
+        value: `Rs ${maxAmount.toLocaleString('en-IN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })}`,
+        icon: '⭐' 
+      }
+    ];
+
+    const cardWidth = ((this.doc.page.width - 130) / 3) - 10;
+
+    stats.forEach((stat, idx) => {
+      const cardX = 50 + (idx * (cardWidth + 10));
+
+      this.doc
+        .roundedRect(cardX, y, cardWidth, 50, 3)
+        .fillAndStroke(this.lightGray, this.accentColor);
+
+      this.doc
+        .fontSize(9)
+        .font('Helvetica')
+        .fillColor(this.darkGray)
+        .text(stat.label, cardX + 10, y + 10, { width: cardWidth - 20 });
+
+      this.doc
+        .fontSize(12)
+        .font('Helvetica-Bold')
+        .fillColor(this.primaryColor)
+        .text(stat.value, cardX + 10, y + 28, { width: cardWidth - 20 });
+    });
+
+    // Update y position after stats cards
+    this.doc.y = y + 60;
   }
 
   generateTableHeader(y, headers, columnWidths, rowHeight) {
-    this.doc.font('Helvetica-Bold').fontSize(9).fillColor('#000000');
+    // Header background
+    this.doc
+      .rect(50, y, this.doc.page.width - 100, rowHeight + 5)
+      .fill(this.primaryColor);
+
+    this.doc
+      .font('Helvetica-Bold')
+      .fontSize(8.5)
+      .fillColor('#ffffff');
+    
     let x = 50;
     
     headers.forEach((header, i) => {
-      this.doc.text(header, x, y, { width: columnWidths[i], align: 'left' });
+      const align = i === 3 ? 'right' : 'left';
+      this.doc.text(header, x, y + 6, { 
+        width: columnWidths[i] - 5, 
+        align: align 
+      });
       x += columnWidths[i];
     });
 
-    // Draw header line
-    this.doc
-      .strokeColor('#1e40af')
-      .lineWidth(1)
-      .moveTo(50, y + rowHeight)
-      .lineTo(550, y + rowHeight)
-      .stroke();
+    this.doc.y = y + rowHeight + 5;
   }
 
-  drawHorizontalLine() {
+  drawHorizontalLine(color = '#cccccc') {
     this.doc
-      .strokeColor('#cccccc')
+      .strokeColor(color)
       .lineWidth(1)
       .moveTo(50, this.doc.y)
-      .lineTo(550, this.doc.y)
+      .lineTo(this.doc.page.width - 50, this.doc.y)
       .stroke();
   }
 
   generateFooter() {
     try {
-      // Get the actual page range
       const pageRange = this.doc.bufferedPageRange();
       
-      // Ensure we have a valid page range
       if (!pageRange || typeof pageRange.start !== 'number' || typeof pageRange.count !== 'number') {
         console.warn('Invalid page range, skipping footer generation');
         return;
       }
 
-      // Loop through all pages
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
         try {
           this.doc.switchToPage(i);
           
+          const footerY = this.doc.page.height - 60;
+          
+          // Footer decorative line
+          this.doc
+            .strokeColor(this.accentColor)
+            .lineWidth(0.5)
+            .moveTo(50, footerY)
+            .lineTo(this.doc.page.width - 50, footerY)
+            .stroke();
+
           // Footer text
           this.doc
-            .fontSize(8)
+            .fontSize(7.5)
             .font('Helvetica')
-            .fillColor('#666666')
+            .fillColor(this.darkGray)
             .text(
-              `Report generated on ${new Date().toLocaleString()}`,
+              `Generated on ${new Date().toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+              })}, ${new Date().toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              })}`,
               50,
-              this.doc.page.height - 50,
-              { align: 'center', width: 500 }
+              footerY + 10,
+              { align: 'left', width: 250 }
             )
             .text(
               `Page ${i - pageRange.start + 1} of ${pageRange.count}`,
-              50,
-              this.doc.page.height - 35,
-              { align: 'center', width: 500 }
+              0,
+              footerY + 10,
+              { align: 'center', width: this.doc.page.width }
             );
+
+          // Organization name in footer
+          this.doc
+            .fontSize(7.5)
+            .fillColor(this.darkGray)
+            .text(
+              this.organizationName,
+              0,
+              footerY + 25,
+              { align: 'center', width: this.doc.page.width }
+            );
+
         } catch (pageError) {
           console.warn(`Error adding footer to page ${i}:`, pageError);
-          // Continue with other pages
         }
       }
     } catch (error) {
       console.error('Error generating footer:', error);
-      // Don't fail the entire PDF generation if footer fails
     }
   }
 
@@ -293,32 +466,62 @@ export class PDFReportGenerator {
         this.doc = new PDFDocument({ 
           margin: 50,
           size: 'A4',
-          bufferPages: true
+          bufferPages: true,
+          autoFirstPage: false
         });
 
         this.doc.on('data', chunk => chunks.push(chunk));
         this.doc.on('end', () => resolve(Buffer.concat(chunks)));
         this.doc.on('error', reject);
 
-        // Header
+        // Add first page manually
+        this.doc.addPage();
+
+        // Decorative top bar
         this.doc
-          .fontSize(20)
+          .rect(0, 0, this.doc.page.width, 8)
+          .fill(this.primaryColor);
+
+        this.doc
+          .rect(0, 8, this.doc.page.width, 4)
+          .fill(this.accentColor);
+
+        this.doc.moveDown(2);
+
+        // Header
+        const headerY = this.doc.y;
+        this.doc
+          .roundedRect(50, headerY, this.doc.page.width - 100, 70, 5)
+          .fill(this.lightGray);
+
+        this.doc
+          .fontSize(22)
           .font('Helvetica-Bold')
-          .fillColor('#1e40af')
-          .text(organizationName, { align: 'center' })
-          .moveDown(0.5)
+          .fillColor(this.primaryColor)
+          .text(organizationName, 50, headerY + 12, { 
+            align: 'center',
+            width: this.doc.page.width - 100
+          });
+
+        this.doc
           .fontSize(16)
           .font('Helvetica')
-          .fillColor('#000000')
-          .text('Analytics Report', { align: 'center' })
-          .moveDown(0.5)
-          .fontSize(10)
-          .fillColor('#666666')
-          .text(`Timeframe: ${timeframe || 'Monthly'}`, { align: 'center' })
-          .text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'center' })
-          .moveDown(1);
+          .fillColor(this.textColor)
+          .text('Analytics Report', 50, headerY + 40, { 
+            align: 'center',
+            width: this.doc.page.width - 100
+          });
 
-        // Add analytics content here
+        this.doc.moveDown(3);
+
+        this.doc
+          .fontSize(10)
+          .fillColor(this.darkGray)
+          .text(`Timeframe: ${timeframe || 'Monthly'}`, { align: 'center' })
+          .text(`Generated: ${new Date().toLocaleString('en-GB')}`, { align: 'center' });
+
+        this.doc.moveDown(2);
+
         this.addAnalyticsContent(analytics, timeframe);
         
         this.generateFooter();
@@ -331,11 +534,25 @@ export class PDFReportGenerator {
   }
 
   addAnalyticsContent(analytics, timeframe) {
-    // This is a placeholder - implement based on your analytics structure
     this.doc
       .fontSize(12)
       .font('Helvetica')
-      .text('Analytics data would be displayed here.')
+      .fillColor(this.textColor)
+      .text('Analytics data will be displayed here based on your requirements.')
       .moveDown(1);
+
+    // Add placeholder for analytics visualization
+    const boxY = this.doc.y;
+    this.doc
+      .roundedRect(50, boxY, this.doc.page.width - 100, 100, 5)
+      .fillAndStroke(this.lightGray, this.accentColor);
+
+    this.doc
+      .fontSize(10)
+      .fillColor(this.darkGray)
+      .text('Analytics charts and graphs would appear here', 50, boxY + 40, {
+        align: 'center',
+        width: this.doc.page.width - 100
+      });
   }
 }

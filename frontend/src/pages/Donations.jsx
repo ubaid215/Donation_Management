@@ -1,3 +1,4 @@
+// pages/Donations/Donations.jsx
 import React, { useEffect } from 'react'
 import { PlusCircle } from 'lucide-react'
 import useAuth from '../hooks/useAuth.js'
@@ -48,6 +49,18 @@ const Donations = () => {
   }
 
   const handleDonationCreated = () => {
+    refreshDonations()
+  }
+
+  const handleDonationUpdated = () => {
+    refreshDonations()
+  }
+
+  const handleDonationDeleted = () => {
+    refreshDonations()
+  }
+
+  const refreshDonations = () => {
     if (isAdmin()) {
       fetchDonations(filters)
     } else {
@@ -74,7 +87,7 @@ const Donations = () => {
           <div className="flex items-center gap-2">
             <PlusCircle className="w-5 h-5 text-primary-600" />
             <span className="text-sm text-gray-600">
-              You can only view your own records
+              You can only view and edit your own records
             </span>
           </div>
         )}
@@ -93,7 +106,12 @@ const Donations = () => {
       />
 
       {/* Donation List */}
-      <DonationList donations={donations} loading={loading} />
+      <DonationList 
+        donations={donations} 
+        loading={loading}
+        onDonationUpdated={handleDonationUpdated}
+        onDonationDeleted={handleDonationDeleted}
+      />
 
       {/* Pagination */}
       {donations.length > 0 && (

@@ -323,7 +323,7 @@ export class AuthService {
     return updatedUser;
   }
 
-  async getOperators(filters = {}) {
+ async getOperators(filters = {}) {
   const { 
     isActive,
     search,
@@ -372,7 +372,7 @@ export class AuthService {
         createdAt: true,
         _count: {
           select: {
-            donations: true
+            donationsCreated: true  // ✅ FIXED: Changed from 'donations' to 'donationsCreated'
           }
         }
       }
@@ -380,8 +380,15 @@ export class AuthService {
     this.prisma.user.count({ where })
   ]);
 
+  // Transform to make donationsCount easily accessible
+  const transformedOperators = operators.map(operator => ({
+    ...operator,
+    donationsCount: operator._count.donationsCreated,
+    _count: undefined // Remove _count from response
+  }));
+
   return {
-    operators,
+    operators: transformedOperators,
     pagination: {
       page: pageInt,
       limit: limitInt,
@@ -391,52 +398,63 @@ export class AuthService {
   };
 }
 
-  async getOperatorStats() {
-    const [
-      totalOperators,
-      activeOperators,
-      operatorsByActivity
-    ] = await Promise.all([
-      // Total operators
-      this.prisma.user.count({ where: { role: 'OPERATOR' } }),
-      
-      // Active operators (logged in last 7 days)
-      this.prisma.user.count({
-        where: {
-          role: 'OPERATOR',
-          isActive: true,
-          lastLogin: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+async getOperatorStats() {
+  const [
+    totalOperators,
+    activeOperators,
+    operatorsByActivity
+  ] = await Promise.all([
+    // Total operators
+    this.prisma.user.count({ where: { role: 'OPERATOR' } }),
+    
+    // Active operators (logged in last 7 days)
+    this.prisma.user.count({
+      where: {
+        role: 'OPERATOR',
+        isActive: true,
+        lastLogin: {
+          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        }
+      }
+    }),
+    
+    // Operators with donation counts
+    this.prisma.user.findMany({
+      where: { role: 'OPERATOR', isActive: true },
+      select: {
+        id: true,
+        name: true,
+        lastLogin: true,
+        _count: {
+          select: { 
+            donationsCreated: true  // ✅ FIXED: Changed from 'donations' to 'donationsCreated'
           }
         }
-      }),
-      
-      // Operators with donation counts
-      this.prisma.user.findMany({
-        where: { role: 'OPERATOR', isActive: true },
-        select: {
-          id: true,
-          name: true,
-          lastLogin: true,
-          _count: {
-            select: { donations: true }
-          }
-        },
-        orderBy: {
-          donations: {
-            _count: 'desc'
-          }
-        },
-        take: 10
-      })
-    ]);
+      },
+      orderBy: {
+        donationsCreated: {  // ✅ FIXED: Changed from 'donations' to 'donationsCreated'
+          _count: 'desc'
+        }
+      },
+      take: 10
+    })
+  ]);
 
-    return {
-      totalOperators,
-      activeOperators,
-      operatorsByActivity
-    };
-  }
+  // Transform the data
+  const transformedOperators = operatorsByActivity.map(op => ({
+    ...op,
+    donationsCount: op._count.donationsCreated,
+    _count: undefined
+  }));
+
+  return {
+    totalOperators,
+    activeOperators,
+    operatorsByActivity: transformedOperators
+  };
+}
+
 
   async verifyToken(userId) {
     const user = await this.prisma.user.findUnique({

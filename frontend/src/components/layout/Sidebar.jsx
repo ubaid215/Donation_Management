@@ -12,7 +12,8 @@ import {
   X,
   PenLineIcon,
   Settings, 
-  UserCircle 
+  UserCircle, 
+  Trash2
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 
@@ -24,6 +25,7 @@ const Sidebar = () => {
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/donations', icon: HandCoins, label: 'Donations' },
     { path: '/categories', icon: PenLineIcon, label: 'Categories' },
+    { path: '/trash', icon: Trash2, label: 'Trash Lists' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/audit-logs', icon: Shield, label: 'Audit Logs' },

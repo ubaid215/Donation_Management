@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../../context/AuthContext.jsx'
 import EditDonationModal from './EditDonationModal.jsx'
 import DeleteDonationModal from './DeleteDonationModal.jsx'
+import DonationHistoryModal from './DonationHistoryModal.jsx'
 
 const DonationList = ({ 
   donations = [], 
@@ -33,7 +34,10 @@ const DonationList = ({
   const [selectedDonation, setSelectedDonation] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  // const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+
+  // Filter out soft-deleted donations
+  const activeDonations = donations.filter(donation => !donation.isDeleted)
 
   const getPaymentMethodIcon = (method) => {
     switch (method) {
@@ -64,7 +68,10 @@ const DonationList = ({
     setShowDeleteModal(true)
   }
 
-  
+  const handleViewHistory = (donation) => {
+    setSelectedDonation(donation)
+    setShowHistoryModal(true)
+  }
 
   const handleEditSuccess = (updatedDonation) => {
     setShowEditModal(false)
@@ -97,7 +104,7 @@ const DonationList = ({
     )
   }
 
-  if (donations.length === 0) {
+  if (activeDonations.length === 0) {
     return (
       <div className="text-center py-12 animate-fade-in">
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
@@ -115,7 +122,7 @@ const DonationList = ({
         {/* Mobile View */}
         <div className="block md:hidden">
           <div className="p-4 space-y-4">
-            {donations.map((donation) => {
+            {activeDonations.map((donation) => {
               const canEdit = canEditDonation(donation)
               return (
                 <div key={donation.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -141,16 +148,24 @@ const DonationList = ({
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => handleDelete(donation)}
-                            className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                            title="Delete donation"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDelete(donation)}
+                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                              title="Delete donation"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </>
                       )}
-                     
+                      <button
+                        onClick={() => handleViewHistory(donation)}
+                        className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded"
+                        title="View history"
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
@@ -164,6 +179,12 @@ const DonationList = ({
                         <Phone className="w-3 h-3 mr-1" />
                         {donation.donorPhone}
                       </div>
+                      {donation.donorEmail && (
+                        <div className="flex items-center text-sm text-gray-500 ml-6 mt-1">
+                          <Mail className="w-3 h-3 mr-1" />
+                          {donation.donorEmail}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -193,11 +214,6 @@ const DonationList = ({
                         <span className="badge badge-success text-xs flex items-center gap-1">
                           <MessageCircle className="w-3 h-3" />
                           WhatsApp Sent
-                        </span>
-                      )}
-                      {donation.isDeleted && (
-                        <span className="badge badge-danger text-xs">
-                          Deleted
                         </span>
                       )}
                     </div>
@@ -232,12 +248,12 @@ const DonationList = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {donations.map((donation) => {
+              {activeDonations.map((donation) => {
                 const canEdit = canEditDonation(donation)
                 return (
                   <tr 
                     key={donation.id} 
-                    className={`hover:bg-gray-50 transition-colors ${donation.isDeleted ? 'bg-red-50' : ''}`}
+                    className="hover:bg-gray-50 transition-colors"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center text-gray-900">
@@ -302,18 +318,13 @@ const DonationList = ({
                             WhatsApp
                           </span>
                         )}
-                        {donation.isDeleted && (
-                          <span className="badge badge-danger text-xs">
-                            Deleted
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="py-3 px-4">
                       {donation.operator ? (
                         <div className="text-sm text-gray-700">
                           {donation.operator.name}
-                          {isAdmin && donation.operatorId === user.id && (
+                          {donation.operatorId === user.id && (
                             <span className="ml-2 text-xs text-blue-600">(You)</span>
                           )}
                         </div>
@@ -323,7 +334,7 @@ const DonationList = ({
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center space-x-2">
-                        {canEdit && !donation.isDeleted && (
+                        {canEdit && (
                           <>
                             <button
                               onClick={() => handleEdit(donation)}
@@ -343,7 +354,13 @@ const DonationList = ({
                             )}
                           </>
                         )}
-                       
+                        <button
+                          onClick={() => handleViewHistory(donation)}
+                          className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded"
+                          title="View history"
+                        >
+                          <History className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -377,6 +394,15 @@ const DonationList = ({
         />
       )}
 
+      {showHistoryModal && selectedDonation && (
+        <DonationHistoryModal
+          donationId={selectedDonation.id}
+          onClose={() => {
+            setShowHistoryModal(false)
+            setSelectedDonation(null)
+          }}
+        />
+      )}
     </>
   )
 }

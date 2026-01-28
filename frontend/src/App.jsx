@@ -21,6 +21,7 @@ import ForgotPassword from './pages/ForgotPassword.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import ResetSuccess from './pages/ResetSuccess.jsx'
 import Settings from './pages/Settings.jsx' // NEW: User settings page
+import DeletedDonations from './pages/DeletedDonations.jsx'
 
 function App() {
   return (
@@ -39,12 +40,13 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/donations" element={<Donations />} />
+              <Route path="/trash" element={<DeletedDonations />} />
               <Route path="/categories" element={<Categories />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/audit-logs" element={<AuditLogs />} />
               <Route path="/operators" element={<Operators />} />
-              <Route path="/settings" element={<Settings />} /> {/* NEW: Settings route */}
+              <Route path="/settings" element={<Settings />} /> 
             </Route>
           </Route>
           

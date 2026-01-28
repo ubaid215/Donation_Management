@@ -34,9 +34,12 @@ export class AdminService {
       weekDonations,
       monthDonations
     ] = await Promise.all([
-      this.prisma.donation.count(),
+      this.prisma.donation.count({
+        where: { isDeleted: false }
+      }),
       
       this.prisma.donation.aggregate({
+        where: { isDeleted: false },
         _sum: { amount: true }
       }),
       
@@ -56,6 +59,7 @@ export class AdminService {
       
       this.prisma.donation.count({
         where: {
+          isDeleted: false,
           date: {
             gte: new Date(new Date().setHours(0, 0, 0, 0))
           }
@@ -64,6 +68,7 @@ export class AdminService {
       
       this.prisma.donation.count({
         where: {
+          isDeleted: false,
           date: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
           }
@@ -72,6 +77,7 @@ export class AdminService {
       
       this.prisma.donation.count({
         where: {
+          isDeleted: false,
           date: {
             gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
           }
@@ -128,32 +134,50 @@ export class AdminService {
       hourlyDistribution
     ] = await Promise.all([
       this.prisma.donation.aggregate({
-        where: { date: { gte: startDate } },
+        where: { 
+          isDeleted: false,
+          date: { gte: startDate } 
+        },
         _sum: { amount: true }
       }),
       
       this.prisma.donation.count({
-        where: { date: { gte: startDate } }
+        where: { 
+          isDeleted: false,
+          date: { gte: startDate } 
+        }
       }),
       
       this.prisma.donation.aggregate({
-        where: { date: { gte: startDate } },
+        where: { 
+          isDeleted: false,
+          date: { gte: startDate } 
+        },
         _avg: { amount: true }
       }),
       
       this.prisma.donation.aggregate({
-        where: { date: { gte: startDate } },
+        where: { 
+          isDeleted: false,
+          date: { gte: startDate } 
+        },
         _max: { amount: true }
       }),
       
       this.prisma.donation.aggregate({
-        where: { date: { gte: startDate } },
+        where: { 
+          isDeleted: false,
+          date: { gte: startDate } 
+        },
         _min: { amount: true }
       }),
       
       this.prisma.donation.groupBy({
         by: ['purpose'],
-        where: { date: { gte: startDate } },
+        where: { 
+          isDeleted: false,
+          date: { gte: startDate } 
+        },
         _count: true,
         _sum: { amount: true },
         orderBy: {
@@ -164,7 +188,10 @@ export class AdminService {
       
       this.prisma.donation.groupBy({
         by: ['paymentMethod'],
-        where: { date: { gte: startDate } },
+        where: { 
+          isDeleted: false,
+          date: { gte: startDate } 
+        },
         _count: true,
         _sum: { amount: true }
       }),
@@ -176,6 +203,7 @@ export class AdminService {
           SUM(amount) as total_amount
         FROM donations
         WHERE date >= NOW() - INTERVAL '7 days'
+          AND "isDeleted" = false
         GROUP BY EXTRACT(HOUR FROM date)
         ORDER BY hour
       `
@@ -313,7 +341,9 @@ export class AdminService {
         createdAt: true,
         _count: {
           select: {
-            donations: true
+            donations: {
+              where: { isDeleted: false }
+            }
           }
         }
       }
@@ -328,10 +358,12 @@ export class AdminService {
       purpose,
       paymentMethod,
       minAmount,
-      maxAmount
+      maxAmount,
+      includeDeleted = false
     } = filters;
 
     return {
+      ...(!includeDeleted && { isDeleted: false }),
       ...(startDate || endDate) && {
         date: {
           ...(startDate && { gte: new Date(startDate) }),

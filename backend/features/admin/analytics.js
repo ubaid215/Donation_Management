@@ -20,35 +20,41 @@ export class AnalyticsService {
       operatorStats,
       recentDonations
     ] = await Promise.all([
-      // Total donations
-      this.prisma.donation.count(),
+      // Total donations - FIXED: exclude deleted
+      this.prisma.donation.count({
+        where: { isDeleted: false }
+      }),
       
-      // Total amount
+      // Total amount - FIXED: exclude deleted
       this.prisma.donation.aggregate({
+        where: { isDeleted: false },
         _sum: { amount: true }
       }),
       
-      // Today's stats
+      // Today's stats - FIXED: exclude deleted
       this.prisma.donation.aggregate({
         where: {
+          isDeleted: false,
           date: { gte: todayStart }
         },
         _count: true,
         _sum: { amount: true }
       }),
       
-      // Week's stats
+      // Week's stats - FIXED: exclude deleted
       this.prisma.donation.aggregate({
         where: {
+          isDeleted: false,
           date: { gte: weekStart }
         },
         _count: true,
         _sum: { amount: true }
       }),
       
-      // Month's stats
+      // Month's stats - FIXED: exclude deleted
       this.prisma.donation.aggregate({
         where: {
+          isDeleted: false,
           date: { gte: monthStart }
         },
         _count: true,
@@ -66,8 +72,9 @@ export class AnalyticsService {
         }
       }),
       
-      // Recent donations (last 10)
+      // Recent donations (last 10) - FIXED: exclude deleted
       this.prisma.donation.findMany({
+        where: { isDeleted: false },
         orderBy: { date: 'desc' },
         take: 10,
         include: {
@@ -105,13 +112,16 @@ export class AnalyticsService {
   }
 
   async getTimeSeriesData(startDate, endDate) {
+    // FIXED: Added isDeleted filter to raw SQL query
     const donations = await this.prisma.$queryRaw`
       SELECT 
         DATE(date) as date,
         COUNT(*) as donations_count,
         SUM(amount) as total_amount
       FROM donations
-      WHERE date >= ${startDate} AND date <= ${endDate}
+      WHERE date >= ${startDate} 
+        AND date <= ${endDate}
+        AND "isDeleted" = false
       GROUP BY DATE(date)
       ORDER BY date ASC
     `;
@@ -120,8 +130,10 @@ export class AnalyticsService {
   }
 
   async getCategoryBreakdown() {
+    // FIXED: exclude deleted donations from category breakdown
     const categories = await this.prisma.donation.groupBy({
       by: ['purpose'],
+      where: { isDeleted: false },
       _count: true,
       _sum: { amount: true },
       orderBy: {
@@ -138,6 +150,7 @@ export class AnalyticsService {
   }
 
   async getOperatorPerformance() {
+    // FIXED: exclude deleted donations from operator performance
     const performance = await this.prisma.user.findMany({
       where: {
         role: 'OPERATOR',
@@ -152,6 +165,7 @@ export class AnalyticsService {
           select: {
             donations: {
               where: {
+                isDeleted: false,
                 date: {
                   gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
                 }
@@ -164,6 +178,7 @@ export class AnalyticsService {
             amount: true
           },
           where: {
+            isDeleted: false,
             date: {
               gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
             }

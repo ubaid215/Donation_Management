@@ -576,6 +576,7 @@ export class DonationService {
     const donors = await this.prisma.donation.groupBy({
       by: ['donorPhone', 'donorName'],
       where: {
+        isDeleted: false,
         OR: [
           { donorName: { contains: search, mode: 'insensitive' } },
           { donorPhone: { contains: search, mode: 'insensitive' } }
@@ -607,7 +608,8 @@ export class DonationService {
 
     const latestDonation = await this.prisma.donation.findFirst({
       where: {
-        donorPhone: phone.trim()
+        donorPhone: phone.trim(),
+        isDeleted: false
       },
       orderBy: {
         date: 'desc'
@@ -627,14 +629,23 @@ export class DonationService {
 
     const [donationCount, totalAmount, donations] = await Promise.all([
       this.prisma.donation.count({
-        where: { donorPhone: phone.trim() }
+        where: { 
+          donorPhone: phone.trim(),
+          isDeleted: false
+        }
       }),
       this.prisma.donation.aggregate({
-        where: { donorPhone: phone.trim() },
+        where: { 
+          donorPhone: phone.trim(),
+          isDeleted: false
+        },
         _sum: { amount: true }
       }),
       this.prisma.donation.findMany({
-        where: { donorPhone: phone.trim() },
+        where: { 
+          donorPhone: phone.trim(),
+          isDeleted: false
+        },
         orderBy: { date: 'desc' },
         take: 5,
         select: {
@@ -676,6 +687,7 @@ export class DonationService {
     const suggestions = await this.prisma.donation.groupBy({
       by: ['donorPhone', 'donorName'],
       where: {
+        isDeleted: false,
         OR: [
           { donorName: { contains: search, mode: 'insensitive' } },
           { donorPhone: { contains: search, mode: 'insensitive' } }
@@ -707,6 +719,7 @@ export class DonationService {
 
     const where = {
       operatorId,
+      isDeleted: false,
       ...(startDate || endDate) && {
         date: {
           ...(startDate && { gte: new Date(startDate) }),
@@ -766,6 +779,7 @@ export class DonationService {
     } = filters;
 
     const where = {
+      isDeleted: false,
       ...(operatorId && { operatorId }),
       ...(startDate || endDate) && {
         date: {
@@ -851,12 +865,16 @@ export class DonationService {
       donationsByOperator,
       topDonors
     ] = await Promise.all([
-      this.prisma.donation.count(),
+      this.prisma.donation.count({
+        where: { isDeleted: false }
+      }),
       this.prisma.donation.aggregate({
+        where: { isDeleted: false },
         _sum: { amount: true }
       }),
       this.prisma.donation.aggregate({
         where: {
+          isDeleted: false,
           date: {
             gte: new Date(new Date().setHours(0, 0, 0, 0))
           }
@@ -866,6 +884,7 @@ export class DonationService {
       }),
       this.prisma.donation.aggregate({
         where: {
+          isDeleted: false,
           date: {
             gte: new Date(new Date().setDate(new Date().getDate() - 30))
           }
@@ -906,6 +925,7 @@ export class DonationService {
       COALESCE(SUM(amount), 0)::float as total_amount
     FROM donations
     WHERE date >= ${startDate}
+      AND "isDeleted" = false
     GROUP BY DATE(date)
     ORDER BY day DESC
     LIMIT 30
@@ -924,7 +944,8 @@ export class DonationService {
       include: {
         donations: {
           where: {
-            date: { gte: startDate }
+            date: { gte: startDate },
+            isDeleted: false
           },
           select: {
             amount: true
@@ -954,7 +975,8 @@ export class DonationService {
       by: ['purpose'],
       where: {
         date: { gte: startDate },
-        categoryId: null
+        categoryId: null,
+        isDeleted: false
       },
       _count: true,
       _sum: { amount: true },
@@ -977,7 +999,8 @@ export class DonationService {
     const donations = await this.prisma.donation.groupBy({
       by: ['operatorId'],
       where: {
-        date: { gte: startDate }
+        date: { gte: startDate },
+        isDeleted: false
       },
       _count: true,
       _sum: { amount: true },
@@ -1005,6 +1028,7 @@ export class DonationService {
   async getTopDonors(limit = 5) {
     const donors = await this.prisma.donation.groupBy({
       by: ['donorPhone', 'donorName'],
+      where: { isDeleted: false },
       _count: true,
       _sum: { amount: true },
       orderBy: {

@@ -31,29 +31,37 @@ const WHATSAPP_CONFIG = {
   PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
   ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
   API_VERSION: 'v22.0',
-  TEMPLATE_NAME_PAKISTAN: 'donation_confirmation_utility', // For Pakistani numbers (+92)
-  TEMPLATE_NAME_INTERNATIONAL: 'receipt_confirm',  // For other countries
+  TEMPLATE_NAME_PAKISTAN: 'donation_confirmation_utility', // For Pakistani numbers (+92) - when admin checks box
+  TEMPLATE_NAME_INTERNATIONAL: 'receipt_confirm',  // For receipt confirmation - when admin unchecks box
   LANGUAGE_CODE: 'en_us'
 };
 
 /**
- * Determine which template to use based on phone number country code
+ * Determine which template to use based on phone number country code and admin preference
  * @param {string} phoneNumber - Phone number with country code
+ * @param {boolean} sendDonationConfirmation - If true, send donation_confirmation; if false, send receipt_confirm
  * @returns {string} - Template name to use
  */
-function getTemplateNameForCountry(phoneNumber) {
+function getTemplateNameForCountry(phoneNumber, sendDonationConfirmation = true) {
   // Remove all non-digit characters except +
   const cleanPhone = phoneNumber.replace(/[\s\-]/g, '');
   
+  // If admin explicitly wants receipt confirmation (unchecked box), always use receipt_confirm
+  if (!sendDonationConfirmation) {
+    console.log('📧 Admin preference: Receipt confirmation - using template:', WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL);
+    return WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL;
+  }
+  
+  // If admin wants donation confirmation (checked box), check country code
   // Check if it's a Pakistani number (starts with +92 or 92)
   if (cleanPhone.startsWith('+92') || cleanPhone.startsWith('92')) {
     console.log('🇵🇰 Pakistani number detected - using template:', WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN);
     return WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN;
   }
   
-  // Default to international template for all other countries
-  console.log('🌍 International number detected - using template:', WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL);
-  return WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL;
+  // For international numbers with donation confirmation, also use donation_confirmation template
+  console.log('🌍 International number - using template:', WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN);
+  return WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN;
 }
 
 /**
@@ -63,8 +71,8 @@ export async function debugWhatsAppConfig() {
   console.log('\n🔍 ===== WhatsApp Configuration Debug =====');
   console.log('Phone Number ID:', WHATSAPP_CONFIG.PHONE_NUMBER_ID || '❌ NOT SET');
   console.log('Access Token Set:', !!WHATSAPP_CONFIG.ACCESS_TOKEN ? '✅ YES' : '❌ NO');
-  console.log('Template (Pakistan):', WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN);
-  console.log('Template (International):', WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL);
+  console.log('Template (Donation Confirmation - Pakistan):', WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN);
+  console.log('Template (Receipt Confirmation - All):', WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL);
   console.log('API Version:', WHATSAPP_CONFIG.API_VERSION);
 
   if (!WHATSAPP_CONFIG.ACCESS_TOKEN) {
@@ -197,6 +205,7 @@ export async function checkWhatsAppHealth() {
  * @param {string} params.purpose - Donation purpose
  * @param {string} params.paymentMethod - Payment method
  * @param {string} params.date - Donation date
+ * @param {boolean} params.sendDonationConfirmation - If true, send donation_confirmation; if false, send receipt_confirm
  */
 export async function sendWhatsAppNotification({
   to,
@@ -204,7 +213,8 @@ export async function sendWhatsAppNotification({
   amount,
   purpose,
   paymentMethod,
-  date
+  date,
+  sendDonationConfirmation = true
 }) {
   try {
     // Validate configuration
@@ -218,8 +228,8 @@ export async function sendWhatsAppNotification({
     const formattedPhone = to.replace(/[\s\-\+]/g, '');
     const recipientPhone = formattedPhone;
 
-    // Determine which template to use based on country code
-    const templateName = getTemplateNameForCountry(to);
+    // Determine which template to use based on country code and admin preference
+    const templateName = getTemplateNameForCountry(to, sendDonationConfirmation);
 
     // Format date
     const formattedDate = new Date(date).toLocaleDateString('en-GB', {
@@ -237,7 +247,7 @@ export async function sendWhatsAppNotification({
       to: recipientPhone,
       type: 'template',
       template: {
-        name: templateName, // Dynamic template based on country
+        name: templateName, // Dynamic template based on country and admin preference
         language: {
           code: WHATSAPP_CONFIG.LANGUAGE_CODE
         },
@@ -258,6 +268,7 @@ export async function sendWhatsAppNotification({
 
     console.log('📦 WhatsApp Payload:', JSON.stringify(payload, null, 2));
     console.log(`📤 Sending WhatsApp message to: ${recipientPhone} using template: ${templateName}`);
+    console.log(`   Template type: ${sendDonationConfirmation ? 'Donation Confirmation' : 'Receipt Confirmation'}`);
 
     // Send request
     const response = await axios.post(url, payload, {
@@ -270,6 +281,7 @@ export async function sendWhatsAppNotification({
     console.log('✅ WhatsApp notification sent successfully:', {
       to: recipientPhone,
       template: templateName,
+      templateType: sendDonationConfirmation ? 'Donation Confirmation' : 'Receipt Confirmation',
       messageId: response.data.messages[0].id,
       status: response.data.messages[0].message_status
     });
@@ -279,6 +291,7 @@ export async function sendWhatsAppNotification({
       messageId: response.data.messages[0].id,
       recipient: recipientPhone,
       templateUsed: templateName,
+      templateType: sendDonationConfirmation ? 'Donation Confirmation' : 'Receipt Confirmation',
       timestamp: new Date()
     };
 
@@ -299,7 +312,7 @@ export async function sendWhatsAppNotification({
       console.error('   Link: https://business.facebook.com/wa/manage/phone-numbers/');
     } else if (errorDetails.code === 131026) {
       console.error('⚠️ WhatsApp failed: Template does not exist or is not approved');
-      console.error(`   Template attempted: ${getTemplateNameForCountry(to)}`);
+      console.error(`   Template attempted: ${getTemplateNameForCountry(to, sendDonationConfirmation)}`);
       console.error('   Fix: Create and get approval for template in Meta Business Manager');
     } else if (errorDetails.code === 190) {
       console.error('⚠️ WhatsApp failed: Invalid access token');

@@ -97,7 +97,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
       customPurpose: '',
       paymentMethod: 'CASH',
       notes: '',
-      sendWhatsApp: user.role === 'OPERATOR' // Default based on user role
+      sendWhatsApp: true // Always default to true (donation confirmation)
     }
   })
 
@@ -141,7 +141,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
       customPurpose: '',
       paymentMethod: 'CASH',
       notes: '',
-      sendWhatsApp: !isAdmin // Reset to default based on role
+      sendWhatsApp: true // Reset to true (donation confirmation is default)
     })
     
     // Clear search and selected donor
@@ -294,8 +294,8 @@ const DonationForm = ({ onSubmitSuccess }) => {
       purpose: data.customPurpose || data.purpose,
       // Only include email if it's provided and valid
       donorEmail: data.donorEmail && data.donorEmail.trim() !== '' ? data.donorEmail.trim() : undefined,
-      // Include WhatsApp preference
-      sendWhatsApp: isAdmin ? data.sendWhatsApp : true // Force true for operators
+      // Always include WhatsApp preference (true = donation confirmation, false = receipt confirmation)
+      sendWhatsApp: data.sendWhatsApp
     }
     
     delete donationData.customPurpose
@@ -314,14 +314,16 @@ const DonationForm = ({ onSubmitSuccess }) => {
         successMessage += ' Email receipt will be sent automatically.'
       }
       
-      if (data.sendWhatsApp && donorPhone) {
+      if (donorPhone) {
         if (isAdmin) {
-          successMessage += ' WhatsApp notification will be sent.'
+          if (data.sendWhatsApp) {
+            successMessage += ' Donation confirmation WhatsApp sent.'
+          } else {
+            successMessage += ' Receipt confirmation WhatsApp sent.'
+          }
         } else {
-          successMessage += ' WhatsApp confirmation has been sent.'
+          successMessage += ' WhatsApp confirmation sent.'
         }
-      } else if (isAdmin && !data.sendWhatsApp && donorPhone) {
-        successMessage += ' WhatsApp notification was not sent (disabled by admin).'
       }
       
       toast.success(successMessage)
@@ -620,12 +622,12 @@ const DonationForm = ({ onSubmitSuccess }) => {
                   </div>
                   <div>
                     <label htmlFor="whatsapp-toggle" className="block text-sm font-medium text-gray-900 cursor-pointer">
-                      Send WhatsApp Notification
+                      WhatsApp Template Type
                     </label>
                     <p className="text-xs text-gray-500 mt-1">
                       {sendWhatsApp 
-                        ? 'WhatsApp message will be sent to donor after submission'
-                        : 'WhatsApp message will NOT be sent to donor'}
+                        ? '✅ ON = Send "Donation Confirmation" template (donation_confirmation_utility)'
+                        : '📧 OFF = Send "Receipt Confirmation" template (receipt_confirm)'}
                     </p>
                   </div>
                 </div>
@@ -707,11 +709,11 @@ const DonationForm = ({ onSubmitSuccess }) => {
     )}
 
     {isAdmin ? (
-      <p className={`text-sm flex items-center gap-1 ${sendWhatsApp ? 'text-green-600' : 'text-yellow-600'}`}>
-        {sendWhatsApp ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+      <p className={`text-sm flex items-center gap-1 ${sendWhatsApp ? 'text-green-600' : 'text-blue-600'}`}>
+        {sendWhatsApp ? <Bell className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
         {sendWhatsApp
-          ? `WhatsApp will be sent to ${watch('donorPhone') || 'donor'}`
-          : 'WhatsApp notification is disabled (admin mode)'}
+          ? '✅ Donation Confirmation template will be sent to ' + (watch('donorPhone') || 'donor')
+          : '📧 Receipt Confirmation template will be sent to ' + (watch('donorPhone') || 'donor')}
       </p>
     ) : (
       <p className="text-sm text-green-600 flex items-center gap-1">

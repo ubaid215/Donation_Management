@@ -38,7 +38,7 @@ export class DonationService {
         data: {
           donorName: donationData.donorName,
           donorPhone: donationData.donorPhone,
-          donorEmail: donationData.donorEmail || null, // NEW: Add email field
+          donorEmail: donationData.donorEmail || null,
           amount: parseFloat(donationData.amount),
           purpose: donationData.purpose,
           categoryId: categoryId,
@@ -46,7 +46,7 @@ export class DonationService {
           notes: donationData.notes,
           operatorId: operatorId,
           date: new Date(),
-          emailSent: false, // NEW: Track email status
+          emailSent: false,
           emailSentAt: null,
           emailError: null
         },
@@ -82,7 +82,7 @@ export class DonationService {
           donorName: donationData.donorName,
           donorPhone: donationData.donorPhone,
           donorEmail: donationData.donorEmail || null,
-          sendWhatsApp: donationData.sendWhatsApp || true // Log WhatsApp preference
+          sendWhatsApp: donationData.sendWhatsApp !== undefined ? donationData.sendWhatsApp : true
         },
         ipAddress: ipAddress
       });
@@ -90,33 +90,21 @@ export class DonationService {
       return newDonation;
     });
 
-    // Send notifications (non-blocking) - Check if WhatsApp should be sent
-    const shouldSendWhatsApp = donationData.sendWhatsApp !== false; // Default to true if not specified
+    // Send WhatsApp notifications with template based on sendWhatsApp flag
+    // For operators: always send donation_confirmation (sendWhatsApp defaults to true)
+    // For admins: 
+    //   - checked (true) = donation_confirmation template
+    //   - unchecked (false) = receipt_confirm template
+    
+    // Determine template type based on sendWhatsApp value
+    // undefined or true = donation confirmation (checked or operator)
+    // false = receipt confirmation (unchecked by admin)
+    const useDonationConfirmation = donationData.sendWhatsApp !== false;
+    
+    // Always send WhatsApp (just different templates)
+    this.sendDonationNotifications(donation, useDonationConfirmation);
 
-    if (shouldSendWhatsApp) {
-      this.sendDonationNotifications(donation);
-    } else {
-      console.log('ℹ️ WhatsApp notification skipped as per admin preference');
-
-      // Create audit log for skipped WhatsApp
-      await createAuditLog({
-        action: 'WHATSAPP_SKIPPED',
-        userId: operatorId,
-        userRole: 'ADMIN',
-        entityType: 'DONATION',
-        entityId: donation.id,
-        description: `WhatsApp notification skipped for ${donation.donorName} (admin preference)`,
-        metadata: {
-          recipient: donation.donorPhone,
-          donorName: donation.donorName,
-          amount: donation.amount,
-          purpose: donation.purpose,
-          reason: 'Admin disabled WhatsApp notification during donation creation'
-        }
-      }).catch(err => console.error('Failed to create WhatsApp skipped audit log:', err));
-    }
-
-    // NEW: Automatically send email receipt if email is provided
+    // Automatically send email receipt if email is provided
     if (donation.donorEmail) {
       this.sendReceiptEmailAsync(donation.id, operatorId, ipAddress);
     }
@@ -124,7 +112,7 @@ export class DonationService {
     return donation;
   }
 
-  // NEW: Send receipt email (main method)
+  // Send receipt email (main method)
   async sendReceiptEmail(donationId, userId, ipAddress = null, customMessage = '') {
     try {
       const donation = await this.prisma.donation.findUnique({
@@ -439,7 +427,7 @@ export class DonationService {
     return history;
   }
 
-  // NEW: Async email sending (non-blocking for donation creation)
+  // Async email sending (non-blocking for donation creation)
   async sendReceiptEmailAsync(donationId, userId, ipAddress = null) {
     try {
       await this.sendReceiptEmail(donationId, userId, ipAddress);
@@ -449,7 +437,7 @@ export class DonationService {
     }
   }
 
-  // NEW: Resend receipt email
+  // Resend receipt email
   async resendReceiptEmail(donationId, userId, ipAddress = null, customMessage = '') {
     // Same as sendReceiptEmail, just logs as RESEND action
     try {
@@ -617,7 +605,7 @@ export class DonationService {
       select: {
         donorName: true,
         donorPhone: true,
-        donorEmail: true, // NEW: Include email
+        donorEmail: true,
         purpose: true,
         paymentMethod: true
       }
@@ -661,7 +649,7 @@ export class DonationService {
     return {
       donorName: latestDonation.donorName,
       donorPhone: latestDonation.donorPhone,
-      donorEmail: latestDonation.donorEmail, // NEW: Return email
+      donorEmail: latestDonation.donorEmail,
       lastPurpose: latestDonation.purpose,
       lastPaymentMethod: latestDonation.paymentMethod,
       totalDonations: donationCount,
@@ -799,7 +787,7 @@ export class DonationService {
         OR: [
           { donorName: { contains: search, mode: 'insensitive' } },
           { donorPhone: { contains: search, mode: 'insensitive' } },
-          { donorEmail: { contains: search, mode: 'insensitive' } } // NEW: Search by email
+          { donorEmail: { contains: search, mode: 'insensitive' } }
         ]
       })
     };
@@ -1058,7 +1046,7 @@ export class DonationService {
     });
   }
 
-  async sendDonationNotifications(donation) {
+  async sendDonationNotifications(donation, sendDonationConfirmation = true) {
     try {
       // Send WhatsApp notification with template
       if (process.env.WHATSAPP_ACCESS_TOKEN &&
@@ -1071,11 +1059,13 @@ export class DonationService {
           amount: donation.amount.toString(),
           purpose: donation.purpose,
           paymentMethod: donation.paymentMethod,
-          date: donation.date
+          date: donation.date,
+          sendDonationConfirmation: sendDonationConfirmation // Pass the flag to determine template type
         });
 
         if (result.success) {
           console.log('✅ WhatsApp notification sent:', result.messageId);
+          console.log(`   Template used: ${result.templateUsed} (${result.templateType})`);
 
           // Update donation record with WhatsApp status
           await this.prisma.donation.update({
@@ -1102,6 +1092,8 @@ export class DonationService {
               amount: donation.amount.toString(),
               purpose: donation.purpose,
               messageId: result.messageId,
+              templateUsed: result.templateUsed,
+              templateType: result.templateType,
               timestamp: result.timestamp
             }
           });

@@ -31,7 +31,7 @@ const WHATSAPP_CONFIG = {
   PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
   ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
   API_VERSION: 'v22.0',
-  TEMPLATE_NAME_PAKISTAN: 'donation_confirm_receipt', // For Pakistani numbers and international  (+92) - when admin checks box
+  TEMPLATE_NAME_PAKISTAN: 'donation_confirmation_thanks', // For Pakistani numbers and international  (+92) - when admin checks box
   TEMPLATE_NAME_INTERNATIONAL: 'receipt_confirm',  // For receipt confirmation  for both - when admin unchecks box
   LANGUAGE_CODE: 'en_us'
 };

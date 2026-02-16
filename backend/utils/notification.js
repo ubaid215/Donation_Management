@@ -31,37 +31,240 @@ const WHATSAPP_CONFIG = {
   PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID,
   ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
   API_VERSION: 'v22.0',
-  TEMPLATE_NAME_PAKISTAN: 'donation_confirmation_thanks', // For Pakistani numbers and international  (+92) - when admin checks box
-  TEMPLATE_NAME_INTERNATIONAL: 'receipt_confirm',  // For receipt confirmation  for both - when admin unchecks box
-  LANGUAGE_CODE: 'en_us'
+  TEMPLATE_NAME_PAKISTAN: 'donation_confirmation_thanks',
+  TEMPLATE_NAME_INTERNATIONAL: 'receipt_confirm',
+  LANGUAGE_CODE: 'en_us',
+  // Retry configuration
+  MAX_RETRIES: 3,
+  RETRY_DELAY_MS: 1000, // Start with 1 second
+  TIMEOUT_MS: 15000 // 15 seconds timeout per attempt
 };
 
 /**
  * Determine which template to use based on phone number country code and admin preference
- * @param {string} phoneNumber - Phone number with country code
- * @param {boolean} sendDonationConfirmation - If true, send donation_confirmation; if false, send receipt_confirm
- * @returns {string} - Template name to use
  */
 function getTemplateNameForCountry(phoneNumber, sendDonationConfirmation = true) {
-  // Remove all non-digit characters except +
   const cleanPhone = phoneNumber.replace(/[\s\-]/g, '');
   
-  // If admin explicitly wants receipt confirmation (unchecked box), always use receipt_confirm
   if (!sendDonationConfirmation) {
     console.log('📧 Admin preference: Receipt confirmation - using template:', WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL);
     return WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL;
   }
   
-  // If admin wants donation confirmation (checked box), check country code
-  // Check if it's a Pakistani number (starts with +92 or 92)
   if (cleanPhone.startsWith('+92') || cleanPhone.startsWith('92')) {
     console.log('🇵🇰 Pakistani number detected - using template:', WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN);
     return WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN;
   }
   
-  // For international numbers with donation confirmation, also use donation_confirmation template
   console.log('🌍 International number - using template:', WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN);
   return WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN;
+}
+
+/**
+ * Sleep utility for retry delays
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Determine if error is retryable (network/timeout) or permanent (config/validation)
+ */
+function isRetryableError(error) {
+  // Network errors - retryable
+  if (error.code === 'ECONNABORTED' || 
+      error.code === 'ETIMEDOUT' || 
+      error.code === 'ENOTFOUND' ||
+      error.code === 'ECONNREFUSED' ||
+      error.message?.includes('timeout') ||
+      error.message?.includes('network')) {
+    return true;
+  }
+
+  // HTTP status codes - retryable
+  const status = error.response?.status;
+  if (status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504) {
+    return true;
+  }
+
+  // WhatsApp API specific errors - NOT retryable (permanent issues)
+  const errorCode = error.response?.data?.error?.code;
+  if (errorCode === 133010 || // Account not registered
+      errorCode === 131026 || // Template doesn't exist
+      errorCode === 190 ||    // Invalid access token
+      errorCode === 100 ||    // Invalid parameter
+      errorCode === 131047 || // Re-engagement message
+      errorCode === 131031) { // Phone number not registered
+    return false;
+  }
+
+  // Default: retry for unknown errors
+  return true;
+}
+
+/**
+ * Send WhatsApp notification with retry logic
+ * @returns {Promise<Object>} - Success object or throws error with details
+ */
+export async function sendWhatsAppNotificationWithRetry({
+  to,
+  donorName,
+  amount,
+  purpose,
+  paymentMethod,
+  date,
+  sendDonationConfirmation = true
+}) {
+  // Check if WhatsApp is configured
+  if (!WHATSAPP_CONFIG.ACCESS_TOKEN || !WHATSAPP_CONFIG.PHONE_NUMBER_ID) {
+    console.log('⚠️ WhatsApp not configured - skipping notification');
+    return { 
+      success: false, 
+      skipped: true, 
+      reason: 'WhatsApp not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in environment variables.',
+      code: 'NOT_CONFIGURED'
+    };
+  }
+
+  const formattedPhone = to.replace(/[\s\-\+]/g, '');
+  const templateName = getTemplateNameForCountry(to, sendDonationConfirmation);
+  const formattedDate = new Date(date).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+
+  const url = `https://graph.facebook.com/${WHATSAPP_CONFIG.API_VERSION}/${WHATSAPP_CONFIG.PHONE_NUMBER_ID}/messages`;
+  
+  const payload = {
+    messaging_product: 'whatsapp',
+    to: formattedPhone,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: {
+        code: WHATSAPP_CONFIG.LANGUAGE_CODE
+      },
+      components: [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: donorName },
+            { type: 'text', text: amount.toString() },
+            { type: 'text', text: purpose },
+            { type: 'text', text: paymentMethod },
+            { type: 'text', text: formattedDate }
+          ]
+        }
+      ]
+    }
+  };
+
+  let lastError = null;
+  
+  // Retry loop
+  for (let attempt = 1; attempt <= WHATSAPP_CONFIG.MAX_RETRIES; attempt++) {
+    try {
+      console.log(`📤 WhatsApp attempt ${attempt}/${WHATSAPP_CONFIG.MAX_RETRIES} to ${formattedPhone} using template: ${templateName}`);
+      
+      const response = await axios.post(url, payload, {
+        headers: {
+          'Authorization': `Bearer ${WHATSAPP_CONFIG.ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: WHATSAPP_CONFIG.TIMEOUT_MS
+      });
+
+      // Success!
+      console.log(`✅ WhatsApp sent successfully on attempt ${attempt}:`, {
+        to: formattedPhone,
+        template: templateName,
+        messageId: response.data.messages[0].id
+      });
+
+      return {
+        success: true,
+        messageId: response.data.messages[0].id,
+        recipient: formattedPhone,
+        templateUsed: templateName,
+        templateType: sendDonationConfirmation ? 'Donation Confirmation' : 'Receipt Confirmation',
+        timestamp: new Date(),
+        attempt: attempt
+      };
+
+    } catch (error) {
+      lastError = error;
+      const errorDetails = {
+        message: error.response?.data?.error?.message || error.message,
+        code: error.response?.data?.error?.code,
+        type: error.response?.data?.error?.type,
+        status: error.response?.status,
+        attempt: attempt
+      };
+
+      console.error(`❌ WhatsApp attempt ${attempt} failed:`, errorDetails);
+
+      // Check if error is retryable
+      if (!isRetryableError(error)) {
+        console.error('⚠️ Permanent error detected - stopping retries');
+        
+        // Provide helpful error messages for common permanent errors
+        let userMessage = errorDetails.message;
+        if (errorDetails.code === 133010) {
+          userMessage = 'Phone number not registered with WhatsApp Business';
+        } else if (errorDetails.code === 131026) {
+          userMessage = `Template "${templateName}" does not exist or is not approved`;
+        } else if (errorDetails.code === 190) {
+          userMessage = 'Invalid WhatsApp access token - please reconfigure';
+        } else if (errorDetails.code === 131031) {
+          userMessage = 'Recipient phone number is not a valid WhatsApp number';
+        }
+
+        throw {
+          success: false,
+          error: userMessage,
+          errorCode: errorDetails.code,
+          errorType: errorDetails.type,
+          isPermanent: true,
+          canRetry: false,
+          details: errorDetails
+        };
+      }
+
+      // If we have more attempts, wait with exponential backoff
+      if (attempt < WHATSAPP_CONFIG.MAX_RETRIES) {
+        const delayMs = WHATSAPP_CONFIG.RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+        console.log(`⏳ Retrying in ${delayMs}ms... (${attempt}/${WHATSAPP_CONFIG.MAX_RETRIES})`);
+        await sleep(delayMs);
+      }
+    }
+  }
+
+  // All retries exhausted
+  const finalError = {
+    message: lastError?.response?.data?.error?.message || lastError?.message || 'Network error',
+    code: lastError?.response?.data?.error?.code,
+    type: lastError?.response?.data?.error?.type
+  };
+
+  console.error(`❌ All ${WHATSAPP_CONFIG.MAX_RETRIES} WhatsApp attempts failed`);
+  
+  throw {
+    success: false,
+    error: 'Unable to send WhatsApp message. Please check your internet connection and try again.',
+    errorCode: finalError.code,
+    errorType: finalError.type,
+    isPermanent: false,
+    canRetry: true,
+    attempts: WHATSAPP_CONFIG.MAX_RETRIES,
+    details: finalError
+  };
+}
+
+/**
+ * Legacy function - maintained for backward compatibility
+ * Now calls the retry version
+ */
+export async function sendWhatsAppNotification(params) {
+  return await sendWhatsAppNotificationWithRetry(params);
 }
 
 /**
@@ -74,6 +277,8 @@ export async function debugWhatsAppConfig() {
   console.log('Template (Donation Confirmation - Pakistan):', WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN);
   console.log('Template (Receipt Confirmation - All):', WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL);
   console.log('API Version:', WHATSAPP_CONFIG.API_VERSION);
+  console.log('Max Retries:', WHATSAPP_CONFIG.MAX_RETRIES);
+  console.log('Timeout:', WHATSAPP_CONFIG.TIMEOUT_MS + 'ms');
 
   if (!WHATSAPP_CONFIG.ACCESS_TOKEN) {
     console.log('❌ Access Token is missing in environment variables!');
@@ -85,7 +290,6 @@ export async function debugWhatsAppConfig() {
     return { configured: false, error: 'Phone number ID missing' };
   }
 
-  // Try to get phone number details
   try {
     const url = `https://graph.facebook.com/${WHATSAPP_CONFIG.API_VERSION}/${WHATSAPP_CONFIG.PHONE_NUMBER_ID}`;
     const response = await axios.get(url, {
@@ -118,7 +322,6 @@ export async function listWhatsAppTemplates() {
 
     console.log('\n📋 ===== Fetching WhatsApp Templates =====');
 
-    // First, get the WhatsApp Business Account ID
     const phoneUrl = `https://graph.facebook.com/${WHATSAPP_CONFIG.API_VERSION}/${WHATSAPP_CONFIG.PHONE_NUMBER_ID}`;
     const phoneResponse = await axios.get(phoneUrl, {
       headers: {
@@ -132,7 +335,6 @@ export async function listWhatsAppTemplates() {
     const waba_id = phoneResponse.data.account_id;
     console.log('WhatsApp Business Account ID:', waba_id);
 
-    // Now get templates for this account
     const templatesUrl = `https://graph.facebook.com/${WHATSAPP_CONFIG.API_VERSION}/${waba_id}/message_templates`;
     const templatesResponse = await axios.get(templatesUrl, {
       headers: {
@@ -191,141 +393,7 @@ export async function checkWhatsAppHealth() {
     return {
       healthy: false,
       error: error.response?.data || error.message,
-      configured: true // Credentials exist but something else is wrong
-    };
-  }
-}
-
-/**
- * Send WhatsApp template message using Meta Cloud API
- * @param {Object} params - Message parameters
- * @param {string} params.to - Recipient phone number (format: 923001234567)
- * @param {string} params.donorName - Donor's name
- * @param {string} params.amount - Donation amount
- * @param {string} params.purpose - Donation purpose
- * @param {string} params.paymentMethod - Payment method
- * @param {string} params.date - Donation date
- * @param {boolean} params.sendDonationConfirmation - If true, send donation_confirmation; if false, send receipt_confirm
- */
-export async function sendWhatsAppNotification({
-  to,
-  donorName,
-  amount,
-  purpose,
-  paymentMethod,
-  date,
-  sendDonationConfirmation = true
-}) {
-  try {
-    // Validate configuration
-    if (!WHATSAPP_CONFIG.ACCESS_TOKEN || !WHATSAPP_CONFIG.PHONE_NUMBER_ID) {
-      console.log('⚠️ WhatsApp not configured - skipping notification');
-      console.log('   Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in .env file');
-      return { success: false, skipped: true, reason: 'Not configured' };
-    }
-
-    // Ensure it starts with country code
-    const formattedPhone = to.replace(/[\s\-\+]/g, '');
-    const recipientPhone = formattedPhone;
-
-    // Determine which template to use based on country code and admin preference
-    const templateName = getTemplateNameForCountry(to, sendDonationConfirmation);
-
-    // Format date
-    const formattedDate = new Date(date).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-
-    // API endpoint
-    const url = `https://graph.facebook.com/${WHATSAPP_CONFIG.API_VERSION}/${WHATSAPP_CONFIG.PHONE_NUMBER_ID}/messages`;
-
-    // Request payload
-    const payload = {
-      messaging_product: 'whatsapp',
-      to: recipientPhone,
-      type: 'template',
-      template: {
-        name: templateName, // Dynamic template based on country and admin preference
-        language: {
-          code: WHATSAPP_CONFIG.LANGUAGE_CODE
-        },
-        components: [
-          {
-            type: 'body',
-            parameters: [
-              { type: 'text', text: donorName },           // {{1}} - Donor Name
-              { type: 'text', text: amount.toString() },   // {{2}} - Amount
-              { type: 'text', text: purpose },             // {{3}} - Purpose
-              { type: 'text', text: paymentMethod },       // {{4}} - Payment Method
-              { type: 'text', text: formattedDate }        // {{5}} - Date
-            ]
-          }
-        ]
-      }
-    };
-
-    console.log('📦 WhatsApp Payload:', JSON.stringify(payload, null, 2));
-    console.log(`📤 Sending WhatsApp message to: ${recipientPhone} using template: ${templateName}`);
-    console.log(`   Template type: ${sendDonationConfirmation ? 'Donation Confirmation' : 'Receipt Confirmation'}`);
-
-    // Send request
-    const response = await axios.post(url, payload, {
-      headers: {
-        'Authorization': `Bearer ${WHATSAPP_CONFIG.ACCESS_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    console.log('✅ WhatsApp notification sent successfully:', {
-      to: recipientPhone,
-      template: templateName,
-      templateType: sendDonationConfirmation ? 'Donation Confirmation' : 'Receipt Confirmation',
-      messageId: response.data.messages[0].id,
-      status: response.data.messages[0].message_status
-    });
-
-    return {
-      success: true,
-      messageId: response.data.messages[0].id,
-      recipient: recipientPhone,
-      templateUsed: templateName,
-      templateType: sendDonationConfirmation ? 'Donation Confirmation' : 'Receipt Confirmation',
-      timestamp: new Date()
-    };
-
-  } catch (error) {
-    const errorDetails = {
-      message: error.response?.data?.error?.message || error.message,
-      code: error.response?.data?.error?.code,
-      type: error.response?.data?.error?.type,
-      status: error.response?.status
-    };
-
-    console.error('❌ WhatsApp notification failed:', errorDetails);
-
-    // Provide helpful error messages
-    if (errorDetails.code === 133010) {
-      console.error('⚠️ WhatsApp failed: Account not registered');
-      console.error('   Fix: Verify phone number is registered in Meta Business Manager');
-      console.error('   Link: https://business.facebook.com/wa/manage/phone-numbers/');
-    } else if (errorDetails.code === 131026) {
-      console.error('⚠️ WhatsApp failed: Template does not exist or is not approved');
-      console.error(`   Template attempted: ${getTemplateNameForCountry(to, sendDonationConfirmation)}`);
-      console.error('   Fix: Create and get approval for template in Meta Business Manager');
-    } else if (errorDetails.code === 190) {
-      console.error('⚠️ WhatsApp failed: Invalid access token');
-      console.error('   Fix: Get a new permanent access token from Meta Business Manager');
-    }
-
-    // Don't throw - just log and return error
-    return {
-      success: false,
-      error: errorDetails.message,
-      errorCode: errorDetails.code,
-      errorType: errorDetails.type,
-      errorDetails: errorDetails
+      configured: true
     };
   }
 }
@@ -378,5 +446,7 @@ export const getWhatsAppConfig = () => ({
   templateNamePakistan: WHATSAPP_CONFIG.TEMPLATE_NAME_PAKISTAN,
   templateNameInternational: WHATSAPP_CONFIG.TEMPLATE_NAME_INTERNATIONAL,
   hasAccessToken: !!WHATSAPP_CONFIG.ACCESS_TOKEN,
-  hasPhoneNumberId: !!WHATSAPP_CONFIG.PHONE_NUMBER_ID
+  hasPhoneNumberId: !!WHATSAPP_CONFIG.PHONE_NUMBER_ID,
+  maxRetries: WHATSAPP_CONFIG.MAX_RETRIES,
+  timeoutMs: WHATSAPP_CONFIG.TIMEOUT_MS
 });

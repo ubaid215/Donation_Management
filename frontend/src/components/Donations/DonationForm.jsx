@@ -14,13 +14,16 @@ import {
   Mail, 
   Send,
   Bell,
-  BellOff
+  BellOff,
+  Wifi,
+  WifiOff,
+  AlertCircle
 } from 'lucide-react'
 import useDonations from '../../hooks/useDonations.js'
 import useAuth from '../../hooks/useAuth.js' 
 import toast from 'react-hot-toast'
 
-// Popular country codes for quick selection (optional)
+// Popular country codes
 const POPULAR_COUNTRIES = [
   { code: '+92', country: 'Pakistan', flag: '🇵🇰' },
   { code: '+1', country: 'USA/Canada', flag: '🇺🇸' },
@@ -30,7 +33,7 @@ const POPULAR_COUNTRIES = [
   { code: '+966', country: 'Saudi Arabia', flag: '🇸🇦' },
 ]
 
-// Create dynamic validation schema with international phone
+// Create dynamic validation schema
 const createDonationSchema = (categories = []) => {
   return z.object({
     donorName: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -49,7 +52,7 @@ const createDonationSchema = (categories = []) => {
     paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'UPI', 'CHEQUE']),
     notes: z.string().max(500).optional(),
     customPurpose: z.string().max(200).optional(),
-    sendWhatsApp: z.boolean().optional().default(true) // Add this field
+    sendWhatsApp: z.boolean().optional().default(true)
   })
 }
 
@@ -61,9 +64,10 @@ const DonationForm = ({ onSubmitSuccess }) => {
     getDonorByPhone 
   } = useDonations()
   
-  const { user } = useAuth() // Get user info
+  const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showCustomPurpose, setShowCustomPurpose] = useState(false)
+  const [submissionStage, setSubmissionStage] = useState('') // Track what's happening
   
   // Donor search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -75,7 +79,6 @@ const DonationForm = ({ onSubmitSuccess }) => {
   const searchTimeoutRef = useRef(null)
   const wrapperRef = useRef(null)
 
-  // Create dynamic schema
   const donationSchema = createDonationSchema(activeCategories)
 
   const {
@@ -97,14 +100,14 @@ const DonationForm = ({ onSubmitSuccess }) => {
       customPurpose: '',
       paymentMethod: 'CASH',
       notes: '',
-      sendWhatsApp: true // Always default to true (donation confirmation)
+      sendWhatsApp: true
     }
   })
 
   const selectedPurpose = watch('purpose')
   const donorEmail = watch('donorEmail')
   const donorPhone = watch('donorPhone')
-  const sendWhatsApp = watch('sendWhatsApp') // Watch the form value instead of separate state
+  const sendWhatsApp = watch('sendWhatsApp')
   const isAdmin = user.role === 'ADMIN'
 
   // Close suggestions when clicking outside
@@ -130,7 +133,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
     }
   }, [selectedPurpose, setValue])
 
-  // Reset form completely after submission
+  // Reset form completely
   const resetForm = () => {
     reset({
       donorName: '',
@@ -141,14 +144,14 @@ const DonationForm = ({ onSubmitSuccess }) => {
       customPurpose: '',
       paymentMethod: 'CASH',
       notes: '',
-      sendWhatsApp: true // Reset to true (donation confirmation is default)
+      sendWhatsApp: true
     })
     
-    // Clear search and selected donor
     setSearchQuery('')
     setSelectedDonor(null)
     setSuggestions([])
     setShowCustomPurpose(false)
+    setSubmissionStage('')
   }
 
   // Fetch donor suggestions
@@ -176,22 +179,19 @@ const DonationForm = ({ onSubmitSuccess }) => {
     const query = e.target.value
     setSearchQuery(query)
 
-    // Clear previous timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
 
-    // Set new timeout for debounced search
     searchTimeoutRef.current = setTimeout(() => {
       fetchSuggestions(query)
     }, 300)
   }
 
-  // Parse phone number to extract country code (for display purposes)
+  // Extract country code
   const extractCountryCode = (fullPhone) => {
     if (!fullPhone) return null
     
-    // Try to match against popular country codes
     for (const country of POPULAR_COUNTRIES) {
       if (fullPhone.startsWith(country.code)) {
         return country
@@ -205,24 +205,19 @@ const DonationForm = ({ onSubmitSuccess }) => {
     try {
       setSearchLoading(true)
       
-      // Fetch full donor details
       const donor = await getDonorByPhone(suggestion.donorPhone)
       
       if (donor) {
-        // Fill form with donor info
         setValue('donorName', donor.donorName)
         setValue('donorPhone', donor.donorPhone)
         
-        // Set email if available
         if (donor.donorEmail) {
           setValue('donorEmail', donor.donorEmail)
         } else {
           setValue('donorEmail', '')
         }
         
-        // Set last used purpose and payment method if available
         if (donor.lastPurpose) {
-          // Check if it's in active categories
           const categoryExists = activeCategories.some(cat => cat.name === donor.lastPurpose)
           if (categoryExists) {
             setValue('purpose', donor.lastPurpose)
@@ -243,7 +238,6 @@ const DonationForm = ({ onSubmitSuccess }) => {
           setValue('paymentMethod', 'CASH')
         }
         
-        // Reset amount and notes
         setValue('amount', '')
         setValue('notes', '')
         
@@ -278,59 +272,120 @@ const DonationForm = ({ onSubmitSuccess }) => {
   // Quick fill country code
   const handleQuickFill = (code) => {
     const currentPhone = watch('donorPhone') || ''
-    // Remove any existing country code
     let cleanPhone = currentPhone.replace(/^\+\d+/, '')
-    // Add new country code
     setValue('donorPhone', code + cleanPhone)
   }
 
   const onSubmit = async (data) => {
     setIsSubmitting(true)
     
-    // Prepare the final data
-    const donationData = {
-      ...data,
-      donorPhone: data.donorPhone,
-      purpose: data.customPurpose || data.purpose,
-      // Only include email if it's provided and valid
-      donorEmail: data.donorEmail && data.donorEmail.trim() !== '' ? data.donorEmail.trim() : undefined,
-      // Always include WhatsApp preference (true = donation confirmation, false = receipt confirmation)
-      sendWhatsApp: data.sendWhatsApp
-    }
-    
-    delete donationData.customPurpose
-    
-    const result = await createDonation(donationData)
-    setIsSubmitting(false)
-    
-    if (result.success) {
-      // COMPLETELY RESET THE FORM
-      resetForm()
+    try {
+      // Stage 1: Preparing data
+      setSubmissionStage('Preparing donation...')
       
-      // Show appropriate success message
-      let successMessage = '✅ Donation recorded successfully!'
-      
-      if (data.donorEmail && data.donorEmail.trim() !== '') {
-        successMessage += ' Email receipt will be sent automatically.'
+      const donationData = {
+        ...data,
+        donorPhone: data.donorPhone,
+        purpose: data.customPurpose || data.purpose,
+        donorEmail: data.donorEmail && data.donorEmail.trim() !== '' ? data.donorEmail.trim() : undefined,
+        sendWhatsApp: data.sendWhatsApp
       }
       
-      if (donorPhone) {
-        if (isAdmin) {
-          if (data.sendWhatsApp) {
-            successMessage += ' Donation confirmation WhatsApp sent.'
-          } else {
-            successMessage += ' Receipt confirmation WhatsApp sent.'
-          }
-        } else {
-          successMessage += ' WhatsApp confirmation sent.'
+      delete donationData.customPurpose
+      
+      // Stage 2: Sending WhatsApp
+      if (data.donorPhone) {
+        const templateType = data.sendWhatsApp ? 'donation confirmation' : 'receipt confirmation'
+        setSubmissionStage(`Sending WhatsApp ${templateType}...`)
+      }
+      
+      // Stage 3: Call the API (WhatsApp happens first on backend)
+      const result = await createDonation(donationData)
+      
+      if (result.success) {
+        // Stage 4: Success
+        setSubmissionStage('Donation recorded successfully!')
+        
+        // Reset form
+        resetForm()
+        
+        // Build success message
+        let successMessage = '✅ Donation recorded successfully!'
+        
+        if (data.donorEmail && data.donorEmail.trim() !== '') {
+          successMessage += ' 📧 Email receipt will be sent automatically.'
         }
+        
+        if (data.donorPhone) {
+          if (isAdmin) {
+            if (data.sendWhatsApp) {
+              successMessage += ' 📱 Donation confirmation WhatsApp sent.'
+            } else {
+              successMessage += ' 📱 Receipt confirmation WhatsApp sent.'
+            }
+          } else {
+            successMessage += ' 📱 WhatsApp confirmation sent.'
+          }
+        }
+        
+        toast.success(successMessage, { duration: 5000 })
+        
+        if (onSubmitSuccess) {
+          onSubmitSuccess()
+        }
+      } else {
+        throw new Error(result.message || 'Failed to create donation')
       }
+    } catch (error) {
+      console.error('Donation submission error:', error)
       
-      toast.success(successMessage)
-      
-      if (onSubmitSuccess) {
-        onSubmitSuccess()
+      // Check if it's a WhatsApp-specific error
+      if (error.code === 'WHATSAPP_FAILED' || error.message?.includes('WhatsApp')) {
+        const details = error.details || {}
+        
+        if (details.canRetry) {
+          // Network/connectivity issue
+          toast.error(
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold">
+                <WifiOff className="w-5 h-5" />
+                Poor connectivity detected
+              </div>
+              <p className="text-sm">Unable to send WhatsApp notification. Please check your internet connection and try again.</p>
+              <p className="text-xs text-gray-600">The donation was NOT saved to protect data integrity.</p>
+            </div>,
+            { duration: 7000 }
+          )
+        } else {
+          // Permanent error (configuration issue)
+          toast.error(
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 font-semibold">
+                <AlertCircle className="w-5 h-5" />
+                WhatsApp Configuration Issue
+              </div>
+              <p className="text-sm">{details.message || error.message}</p>
+              <p className="text-xs text-gray-600">Please contact your administrator to fix WhatsApp settings.</p>
+            </div>,
+            { duration: 8000 }
+          )
+        }
+      } else {
+        // General error
+        toast.error(
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 font-semibold">
+              <AlertCircle className="w-5 h-5" />
+              Failed to record donation
+            </div>
+            <p className="text-sm">{error.message || 'An unexpected error occurred'}</p>
+          </div>,
+          { duration: 6000 }
+        )
       }
+    } finally {
+      setIsSubmitting(false)
+      setSubmissionStage('')
     }
   }
 
@@ -351,6 +406,23 @@ const DonationForm = ({ onSubmitSuccess }) => {
         )}
       </div>
       
+      {/* Submission Progress Indicator */}
+      {isSubmitting && submissionStage && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-900">{submissionStage}</p>
+              {submissionStage.includes('WhatsApp') && (
+                <p className="text-xs text-blue-600 mt-1">
+                  This may take a few seconds. Ensuring delivery before saving...
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Donor Search */}
         <div ref={wrapperRef}>
@@ -365,6 +437,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               onFocus={() => searchQuery.length >= 2 && setShowSuggestions(true)}
               placeholder="Search by name or phone..."
               className="input pl-10"
+              disabled={isSubmitting}
             />
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             {searchLoading && (
@@ -426,6 +499,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
                   onClick={handleClearDonor}
                   className="text-blue-600 hover:text-blue-800 ml-4"
                   title="Clear donor selection"
+                  disabled={isSubmitting}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -445,13 +519,14 @@ const DonationForm = ({ onSubmitSuccess }) => {
               {...register('donorName')}
               className={`input ${errors.donorName ? 'input-error' : ''}`}
               placeholder="Enter donor's full name"
+              disabled={isSubmitting}
             />
             {errors.donorName && (
               <p className="mt-1 text-sm text-danger-600">{errors.donorName.message}</p>
             )}
           </div>
           
-          {/* WhatsApp Number - Full International Format */}
+          {/* WhatsApp Number */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               WhatsApp Number (Full International Format) *
@@ -462,6 +537,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
                 {...register('donorPhone')}
                 className={`input ${errors.donorPhone ? 'input-error' : ''}`}
                 placeholder="+923001234567"
+                disabled={isSubmitting}
               />
               
               {/* Quick Country Code Buttons */}
@@ -472,8 +548,9 @@ const DonationForm = ({ onSubmitSuccess }) => {
                     key={country.code}
                     type="button"
                     onClick={() => handleQuickFill(country.code)}
-                    className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 transition-colors"
+                    className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 transition-colors disabled:opacity-50"
                     title={country.country}
+                    disabled={isSubmitting}
                   >
                     {country.flag} {country.code}
                   </button>
@@ -493,7 +570,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               </div>
             )}
             <p className="mt-1 text-xs text-gray-500">
-              💡 Example: +923001234567 (Pakistan), +14155551234 (USA), +447911123456 (UK)
+              💡 WhatsApp notification will be sent BEFORE saving to ensure delivery
             </p>
           </div>
 
@@ -516,6 +593,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               {...register('donorEmail')}
               className={`input ${errors.donorEmail ? 'input-error' : ''}`}
               placeholder="donor@example.com (optional)"
+              disabled={isSubmitting}
             />
             {errors.donorEmail && (
               <p className="mt-1 text-sm text-danger-600">{errors.donorEmail.message}</p>
@@ -523,11 +601,6 @@ const DonationForm = ({ onSubmitSuccess }) => {
             {!errors.donorEmail && watch('donorEmail') && watch('donorEmail').trim() !== '' && (
               <p className="mt-1 text-sm text-green-600 flex items-center gap-1">
                 ✓ Beautiful email receipt will be sent automatically
-              </p>
-            )}
-            {(!watch('donorEmail') || watch('donorEmail').trim() === '') && (
-              <p className="mt-1 text-sm text-gray-500">
-                💬 WhatsApp notification will be sent instead
               </p>
             )}
           </div>
@@ -547,6 +620,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
                 {...register('amount', { valueAsNumber: true })}
                 className={`input pl-10 ${errors.amount ? 'input-error' : ''}`}
                 placeholder="0.00"
+                disabled={isSubmitting}
               />
             </div>
             {errors.amount && (
@@ -562,6 +636,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
             <select
               {...register('purpose')}
               className={`input ${errors.purpose ? 'input-error' : ''}`}
+              disabled={isSubmitting}
             >
               <option value="">Select Purpose</option>
               {activeCategories.map(category => (
@@ -587,6 +662,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
                 {...register('customPurpose')}
                 className={`input ${errors.customPurpose ? 'input-error' : ''}`}
                 placeholder="Enter custom donation purpose"
+                disabled={isSubmitting}
               />
               {errors.customPurpose && (
                 <p className="mt-1 text-sm text-danger-600">{errors.customPurpose.message}</p>
@@ -602,6 +678,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
             <select
               {...register('paymentMethod')}
               className={`input ${errors.paymentMethod ? 'input-error' : ''}`}
+              disabled={isSubmitting}
             >
               {paymentMethods.map(method => (
                 <option key={method.value} value={method.value}>{method.label}</option>
@@ -612,7 +689,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
             )}
           </div>
           
-          {/* WhatsApp Notification Toggle (Admin Only) */}
+          {/* WhatsApp Template Toggle (Admin Only) */}
           {isAdmin && (
             <div className="md:col-span-2">
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -626,8 +703,8 @@ const DonationForm = ({ onSubmitSuccess }) => {
                     </label>
                     <p className="text-xs text-gray-500 mt-1">
                       {sendWhatsApp 
-                        ? '✅ ON = Send "Donation Confirmation" template (donation_confirmation_utility)'
-                        : '📧 OFF = Send "Receipt Confirmation" template (receipt_confirm)'}
+                        ? '✅ ON = Send "Donation Confirmation" template'
+                        : '📧 OFF = Send "Receipt Confirmation" template'}
                     </p>
                   </div>
                 </div>
@@ -637,6 +714,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
                     type="checkbox"
                     {...register('sendWhatsApp')}
                     className="sr-only peer"
+                    disabled={isSubmitting}
                   />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                 </label>
@@ -654,80 +732,79 @@ const DonationForm = ({ onSubmitSuccess }) => {
               rows="3"
               className="input resize-none"
               placeholder="Any additional information..."
+              disabled={isSubmitting}
             />
           </div>
         </div>
         
-        {/* Submit Button */}
+        {/* Submit Button Section */}
         <div className="pt-6 space-y-4">
-  
-  {/* Action buttons row */}
-  <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
-    
-    {/* Reset Button */}
-    <button
-      type="button"
-      onClick={resetForm}
-      className="btn btn-outline px-6 py-3 order-2 sm:order-1"
-      disabled={isSubmitting}
-    >
-      Clear Form
-    </button>
+          {/* Action buttons row */}
+          <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
+            {/* Reset Button */}
+            <button
+              type="button"
+              onClick={resetForm}
+              className="btn btn-outline px-6 py-3 order-2 sm:order-1"
+              disabled={isSubmitting}
+            >
+              Clear Form
+            </button>
 
-    {/* Submit Button */}
-    <button
-      type="submit"
-      disabled={isSubmitting}
-      className="btn btn-primary px-8 py-3 flex items-center justify-center gap-2 order-1 sm:order-2"
-    >
-      {isSubmitting ? (
-        <>
-          <Loader2 className="w-5 h-5 animate-spin" />
-          Processing...
-        </>
-      ) : (
-        <>
-          <PlusCircle className="w-5 h-5" />
-          Record Donation
-        </>
-      )}
-    </button>
-  </div>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-primary px-8 py-3 flex items-center justify-center gap-2 order-1 sm:order-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {submissionStage || 'Processing...'}
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="w-5 h-5" />
+                  Record Donation
+                </>
+              )}
+            </button>
+          </div>
 
-  {/* Notification & Info Section */}
-  <div className="space-y-2">
-    {watch('donorEmail')?.trim() ? (
-      <p className="text-sm text-green-600 flex items-center gap-1">
-        <Mail className="w-4 h-4" />
-        Email receipt will be sent to <strong>{watch('donorEmail')}</strong>
-      </p>
-    ) : (
-      <p className="text-sm text-blue-600 flex items-center gap-1">
-        <Mail className="w-4 h-4" />
-        No email provided — WhatsApp notification will be used
-      </p>
-    )}
+          {/* Info Section */}
+          <div className="space-y-2">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-900 font-medium flex items-center gap-2">
+                <Wifi className="w-4 h-4" />
+                How it works:
+              </p>
+              <ol className="mt-2 ml-6 text-xs text-blue-700 space-y-1 list-decimal">
+                <li>WhatsApp notification is sent first (with retries for network issues)</li>
+                <li>Only if WhatsApp succeeds, donation is saved to database</li>
+                <li>Email receipt is sent automatically in background (if email provided)</li>
+              </ol>
+              <p className="mt-2 text-xs text-blue-600">
+                ✨ This ensures no donations are recorded without successful notification delivery
+              </p>
+            </div>
 
-    {isAdmin ? (
-      <p className={`text-sm flex items-center gap-1 ${sendWhatsApp ? 'text-green-600' : 'text-blue-600'}`}>
-        {sendWhatsApp ? <Bell className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
-        {sendWhatsApp
-          ? '✅ Donation Confirmation template will be sent to ' + (watch('donorPhone') || 'donor')
-          : '📧 Receipt Confirmation template will be sent to ' + (watch('donorPhone') || 'donor')}
-      </p>
-    ) : (
-      <p className="text-sm text-green-600 flex items-center gap-1">
-        <Bell className="w-4 h-4" />
-        WhatsApp confirmation will be sent to {watch('donorPhone') || 'donor'}
-      </p>
-    )}
+            {watch('donorEmail')?.trim() ? (
+              <p className="text-sm text-green-600 flex items-center gap-1">
+                <Mail className="w-4 h-4" />
+                Email receipt will be sent to <strong>{watch('donorEmail')}</strong>
+              </p>
+            ) : null}
 
-    <p className="text-sm text-gray-500">
-      💡 Search for existing donors or fill manually. Form resets after successful submission.
-    </p>
-  </div>
-</div>
-
+            {isAdmin && (
+              <p className={`text-sm flex items-center gap-1 ${sendWhatsApp ? 'text-green-600' : 'text-blue-600'}`}>
+                <Bell className="w-4 h-4" />
+                {sendWhatsApp
+                  ? `✅ Donation Confirmation template will be sent to ${watch('donorPhone') || 'donor'}`
+                  : `📧 Receipt Confirmation template will be sent to ${watch('donorPhone') || 'donor'}`}
+              </p>
+            )}
+          </div>
+        </div>
       </form>
     </div>
   )

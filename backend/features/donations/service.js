@@ -1,7 +1,7 @@
 // features/donations/services.js
 import prisma from '../../config/prisma.js';
 import { createAuditLog } from '../../utils/auditLogger.js';
-import { sendWhatsAppNotification } from '../../utils/notification.js';
+import { sendWhatsAppNotificationWithRetry } from '../../utils/notification.js';
 import { sendDonationReceipt } from '../../utils/email.js';
 
 export class DonationService {
@@ -10,6 +10,58 @@ export class DonationService {
   }
 
   async createDonation(donationData, operatorId, ipAddress = null) {
+    // STEP 1: Send WhatsApp notification FIRST (before database commit)
+    let whatsappResult = null;
+    const useDonationConfirmation = donationData.sendWhatsApp !== false;
+
+    if (donationData.donorPhone) {
+      try {
+        console.log('📱 Sending WhatsApp notification before database commit...');
+        
+        whatsappResult = await sendWhatsAppNotificationWithRetry({
+          to: donationData.donorPhone,
+          donorName: donationData.donorName,
+          amount: donationData.amount.toString(),
+          purpose: donationData.purpose,
+          paymentMethod: donationData.paymentMethod,
+          date: new Date(),
+          sendDonationConfirmation: useDonationConfirmation
+        });
+
+        if (!whatsappResult.success && !whatsappResult.skipped) {
+          // WhatsApp failed - throw error to prevent database commit
+          throw whatsappResult;
+        }
+
+        console.log('✅ WhatsApp notification sent successfully, proceeding to database...');
+
+      } catch (error) {
+        console.error('❌ WhatsApp notification failed:', error);
+        
+        // Determine error type and message
+        const errorMessage = error.error || error.message || 'Failed to send WhatsApp notification';
+        const isPermanent = error.isPermanent || false;
+        const canRetry = error.canRetry !== false; // Default to true if not specified
+
+        // Throw a structured error that the frontend can understand
+        const structuredError = new Error(errorMessage);
+        structuredError.code = 'WHATSAPP_FAILED';
+        structuredError.details = {
+          message: errorMessage,
+          isPermanent: isPermanent,
+          canRetry: canRetry,
+          errorCode: error.errorCode,
+          errorType: error.errorType,
+          attempts: error.attempts
+        };
+        
+        throw structuredError;
+      }
+    } else {
+      console.log('⚠️ No phone number provided - skipping WhatsApp notification');
+    }
+
+    // STEP 2: Only proceed with database commit if WhatsApp was successful or skipped
     const donation = await this.prisma.$transaction(async (tx) => {
       // Find or create category
       let categoryId = null;
@@ -22,7 +74,6 @@ export class DonationService {
         });
 
         if (!category) {
-          // Create category if it doesn't exist
           category = await tx.donationCategory.create({
             data: {
               name: donationData.purpose,
@@ -48,7 +99,12 @@ export class DonationService {
           date: new Date(),
           emailSent: false,
           emailSentAt: null,
-          emailError: null
+          emailError: null,
+          // Save WhatsApp status from the notification result
+          whatsappSent: whatsappResult?.success || false,
+          whatsappSentAt: whatsappResult?.success ? whatsappResult.timestamp : null,
+          whatsappMessageId: whatsappResult?.messageId || null,
+          whatsappError: null
         },
         include: {
           operator: {
@@ -66,7 +122,7 @@ export class DonationService {
         }
       });
 
-      // Log the action
+      // Log the donation creation
       await createAuditLog({
         action: 'DONATION_CREATED',
         userId: operatorId,
@@ -87,24 +143,33 @@ export class DonationService {
         ipAddress: ipAddress
       });
 
+      // Log WhatsApp success
+      if (whatsappResult?.success) {
+        await createAuditLog({
+          action: 'WHATSAPP_SENT',
+          userId: operatorId,
+          userRole: 'OPERATOR',
+          entityType: 'DONATION',
+          entityId: newDonation.id,
+          description: `WhatsApp notification sent to ${donationData.donorPhone}`,
+          metadata: {
+            recipient: donationData.donorPhone,
+            donorName: donationData.donorName,
+            amount: donationData.amount.toString(),
+            purpose: donationData.purpose,
+            messageId: whatsappResult.messageId,
+            templateUsed: whatsappResult.templateUsed,
+            templateType: whatsappResult.templateType,
+            timestamp: whatsappResult.timestamp,
+            attempt: whatsappResult.attempt
+          }
+        });
+      }
+
       return newDonation;
     });
 
-    // Send WhatsApp notifications with template based on sendWhatsApp flag
-    // For operators: always send donation_confirmation (sendWhatsApp defaults to true)
-    // For admins: 
-    //   - checked (true) = donation_confirmation template
-    //   - unchecked (false) = receipt_confirm template
-    
-    // Determine template type based on sendWhatsApp value
-    // undefined or true = donation confirmation (checked or operator)
-    // false = receipt confirmation (unchecked by admin)
-    const useDonationConfirmation = donationData.sendWhatsApp !== false;
-    
-    // Always send WhatsApp (just different templates)
-    this.sendDonationNotifications(donation, useDonationConfirmation);
-
-    // Automatically send email receipt if email is provided
+    // STEP 3: Send email receipt asynchronously (non-blocking)
     if (donation.donorEmail) {
       this.sendReceiptEmailAsync(donation.id, operatorId, ipAddress);
     }
@@ -239,7 +304,6 @@ export class DonationService {
       }
 
       // Check permissions
-      // Only admins can update any donation, operators can only update their own
       if (userRole === 'OPERATOR' && existingDonation.operatorId !== userId) {
         throw new Error('You can only update your own donations');
       }
@@ -263,7 +327,6 @@ export class DonationService {
         });
 
         if (!category) {
-          // Create category if it doesn't exist
           category = await tx.donationCategory.create({
             data: {
               name: updateData.purpose,
@@ -404,7 +467,7 @@ export class DonationService {
         entityType: 'DONATION',
         entityId: donationId,
         action: {
-          in: ['DONATION_CREATED', 'DONATION_UPDATED', 'EMAIL_SENT', 'EMAIL_RESENT', 'EMAIL_FAILED']
+          in: ['DONATION_CREATED', 'DONATION_UPDATED', 'EMAIL_SENT', 'EMAIL_RESENT', 'EMAIL_FAILED', 'WHATSAPP_SENT', 'WHATSAPP_FAILED']
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -439,7 +502,6 @@ export class DonationService {
 
   // Resend receipt email
   async resendReceiptEmail(donationId, userId, ipAddress = null, customMessage = '') {
-    // Same as sendReceiptEmail, just logs as RESEND action
     try {
       const donation = await this.prisma.donation.findUnique({
         where: { id: donationId },
@@ -735,7 +797,9 @@ export class DonationService {
           date: true,
           notes: true,
           emailSent: true,
-          emailSentAt: true
+          emailSentAt: true,
+          whatsappSent: true,
+          whatsappSentAt: true
         }
       }),
       this.prisma.donation.count({ where })
@@ -1044,112 +1108,5 @@ export class DonationService {
         lastLogin: { gte: cutoffDate }
       }
     });
-  }
-
-  async sendDonationNotifications(donation, sendDonationConfirmation = true) {
-    try {
-      // Send WhatsApp notification with template
-      if (process.env.WHATSAPP_ACCESS_TOKEN &&
-        process.env.WHATSAPP_ACCESS_TOKEN !== 'your-whatsapp-bearer-token' &&
-        donation.donorPhone) {
-
-        const result = await sendWhatsAppNotification({
-          to: donation.donorPhone,
-          donorName: donation.donorName,
-          amount: donation.amount.toString(),
-          purpose: donation.purpose,
-          paymentMethod: donation.paymentMethod,
-          date: donation.date,
-          sendDonationConfirmation: sendDonationConfirmation // Pass the flag to determine template type
-        });
-
-        if (result.success) {
-          console.log('✅ WhatsApp notification sent:', result.messageId);
-          console.log(`   Template used: ${result.templateUsed} (${result.templateType})`);
-
-          // Update donation record with WhatsApp status
-          await this.prisma.donation.update({
-            where: { id: donation.id },
-            data: {
-              whatsappSent: true,
-              whatsappSentAt: new Date(),
-              whatsappMessageId: result.messageId,
-              whatsappError: null
-            }
-          });
-
-          // Create audit log for successful WhatsApp send
-          await createAuditLog({
-            action: 'WHATSAPP_SENT',
-            userId: donation.operatorId,
-            userRole: 'OPERATOR',
-            entityType: 'DONATION',
-            entityId: donation.id,
-            description: `WhatsApp notification sent to ${donation.donorPhone}`,
-            metadata: {
-              recipient: donation.donorPhone,
-              donorName: donation.donorName,
-              amount: donation.amount.toString(),
-              purpose: donation.purpose,
-              messageId: result.messageId,
-              templateUsed: result.templateUsed,
-              templateType: result.templateType,
-              timestamp: result.timestamp
-            }
-          });
-
-        } else if (!result.skipped) {
-          console.error('⚠️ WhatsApp failed:', result.error);
-
-          // Update donation record with error
-          await this.prisma.donation.update({
-            where: { id: donation.id },
-            data: {
-              whatsappSent: false,
-              whatsappError: result.error || result.errorDetails?.message
-            }
-          });
-
-          // Create audit log for failed WhatsApp send
-          await createAuditLog({
-            action: 'WHATSAPP_FAILED',
-            userId: donation.operatorId,
-            userRole: 'OPERATOR',
-            entityType: 'DONATION',
-            entityId: donation.id,
-            description: `WhatsApp notification failed for ${donation.donorPhone}: ${result.error}`,
-            metadata: {
-              recipient: donation.donorPhone,
-              donorName: donation.donorName,
-              amount: donation.amount.toString(),
-              error: result.error,
-              errorCode: result.errorCode,
-              errorType: result.errorType,
-              errorDetails: result.errorDetails
-            }
-          });
-        }
-      } else {
-        console.log('ℹ️ WhatsApp disabled - no valid credentials configured');
-      }
-    } catch (error) {
-      console.error('WhatsApp notification error (non-critical):', error.message);
-
-      // Create audit log for unexpected error
-      await createAuditLog({
-        action: 'WHATSAPP_FAILED',
-        userId: donation.operatorId,
-        userRole: 'OPERATOR',
-        entityType: 'DONATION',
-        entityId: donation.id,
-        description: `WhatsApp notification error: ${error.message}`,
-        metadata: {
-          recipient: donation.donorPhone,
-          donorName: donation.donorName,
-          error: error.message,
-          stack: error.stack
-        }
-      });
-    }
   }
 }

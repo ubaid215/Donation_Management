@@ -17,13 +17,14 @@ import adminRoutes from './features/admin/admin.routes.js';
 import reportRoutes from './features/reports/reports.routes.js';
 import auditRoutes from './features/audit/audit.routes.js';
 import whatsappTestRoutes from './features/whatsapp/whatsapp-test.route.js';
+import webhookRoutes from './routes/webhook.routes.js';
 
 // Import prisma for health check
-import prisma from './config/prisma.js'; // Add this import
+import prisma from './config/prisma.js'; 
 
 const app = express();
 
-// ========== MIDDLEWARE SETUP ==========
+// ========== MIDDLEWARE SETUP - MUST COME FIRST ==========
 
 // Security headers
 app.use(helmet({
@@ -40,7 +41,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS configuration
+// CORS configuration - APPLIED TO ALL ROUTES INCLUDING WEBHOOKS
 app.use(cors({
   origin: config.security.corsOrigin,
   credentials: true,
@@ -48,7 +49,10 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Rate limiting - FIXED VERSION
+// Handle preflight requests
+app.options('*', cors());
+
+// Rate limiting
 const limiter = rateLimit({
   windowMs: config.security.rateLimitWindow * 60 * 1000,
   max: config.security.rateLimitMax,
@@ -59,13 +63,12 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: false,
-  keyGenerator: ipKeyGenerator // Use the built-in IPv6-safe helper
+  keyGenerator: ipKeyGenerator
 });
 
-// For stricter auth-specific rate limiting
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 login attempts per window
+  windowMs: 15 * 60 * 1000,
+  max: 5,
   message: {
     success: false,
     error: 'Too many login attempts, please try again after 15 minutes.'
@@ -75,10 +78,7 @@ const authLimiter = rateLimit({
   keyGenerator: ipKeyGenerator
 });
 
-app.use('/api/', limiter);
-app.use('/api/auth/login', authLimiter); // Apply stricter limit to login
-
-// Body parsing with limits
+// Body parsing
 app.use(express.json({ 
   limit: '10mb',
   verify: (req, res, buf) => {
@@ -93,7 +93,7 @@ app.use(express.urlencoded({
 // Compression
 app.use(compression({
   level: 6,
-  threshold: 100 * 1024 // Compress responses larger than 100KB
+  threshold: 100 * 1024
 }));
 
 // Request logging
@@ -113,10 +113,15 @@ app.use((req, res, next) => {
 
 // ========== ROUTES ==========
 
+// Webhook routes - NOW WITH CORS APPLIED
+app.use('/api/webhook', webhookRoutes);
+
+// Also keep the original path for Meta's webhook calls (no CORS needed)
+app.use('/webhook', webhookRoutes);
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    // Check database connection using the imported prisma instance
     await prisma.$queryRaw`SELECT 1`;
     
     res.json({
@@ -136,6 +141,10 @@ app.get('/health', async (req, res) => {
     });
   }
 });
+
+// Apply rate limiting to API routes
+app.use('/api/', limiter);
+app.use('/api/auth/login', authLimiter);
 
 // API Documentation
 app.get('/api', (req, res) => {
@@ -183,11 +192,9 @@ app.use((error, req, res, next) => {
     requestId: req.id
   });
   
-  // Default error
   const statusCode = error.statusCode || 500;
   const message = error.message || 'Internal server error';
   
-  // Structured error response
   const response = {
     success: false,
     error: message,
@@ -195,13 +202,11 @@ app.use((error, req, res, next) => {
     timestamp: new Date().toISOString()
   };
   
-  // Add stack trace in development
   if (config.nodeEnv === 'development') {
     response.stack = error.stack;
     response.details = error.details;
   }
   
-  // Handle specific error types
   if (error.name === 'ValidationError') {
     response.error = 'Validation failed';
     response.details = error.errors;
@@ -209,7 +214,6 @@ app.use((error, req, res, next) => {
   
   if (error.name === 'PrismaClientKnownRequestError') {
     response.error = 'Database error occurred';
-    // Don't expose database errors in production
     if (config.nodeEnv !== 'development') {
       response.error = 'An error occurred while processing your request';
     }
@@ -222,10 +226,8 @@ app.use((error, req, res, next) => {
 
 const startServer = async () => {
   try {
-    // Connect to database
     await connectPrisma();
     
-    // Start server
     const server = app.listen(config.port, () => {
       console.log(`🚀 Server is running on port ${config.port}`);
       console.log(`🌍 Environment: ${config.nodeEnv}`);
@@ -233,35 +235,28 @@ const startServer = async () => {
       console.log(`🕐 Time: ${new Date().toLocaleString()}`);
       console.log(`🔗 Health Check: http://localhost:${config.port}/health`);
       console.log(`🔗 API Base: http://localhost:${config.port}/api`);
+      console.log(`🔗 Webhook URL: http://localhost:${config.port}/webhook/whatsapp`);
     });
     
-    // Graceful shutdown handler
     const shutdown = async (signal) => {
       console.log(`\n${signal} received. Starting graceful shutdown...`);
       
-      // Close server
       server.close(async () => {
         console.log('HTTP server closed');
-        
-        // Disconnect from database
         await disconnectPrisma();
-        
         console.log('Graceful shutdown completed');
         process.exit(0);
       });
       
-      // Force shutdown after 10 seconds
       setTimeout(() => {
         console.error('Could not close connections in time, forcefully shutting down');
         process.exit(1);
       }, 10000);
     };
     
-    // Handle shutdown signals
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
     
-    // Handle uncaught exceptions
     process.on('uncaughtException', (error) => {
       console.error('🔥 Uncaught Exception:', error);
       shutdown('UNCAUGHT_EXCEPTION');
@@ -278,7 +273,6 @@ const startServer = async () => {
   }
 };
 
-// Start the server
 startServer();
 
 export default app;

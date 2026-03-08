@@ -71,8 +71,17 @@ const donationService = {
   },
 
   exportReport: async (filters = {}) => {
-    const params = new URLSearchParams(filters).toString()
+    const clean = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '' && v != null))
+    const params = new URLSearchParams(clean).toString()
     return await api.get(`/reports/donations?${params}`, {
+      responseType: 'blob'
+    })
+  },
+
+  exportCategoryReport: async (categoryId, categoryName, filters = {}) => {
+    const clean = Object.fromEntries(Object.entries({ categoryId, categoryName, ...filters }).filter(([, v]) => v !== '' && v != null))
+    const params = new URLSearchParams(clean).toString()
+    return await api.get(`/reports/category?${params}`, {
       responseType: 'blob'
     })
   },

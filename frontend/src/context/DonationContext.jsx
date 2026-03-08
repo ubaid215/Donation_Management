@@ -62,7 +62,7 @@ export const DonationProvider = ({ children }) => {
       setLoading(true)
       const combinedFilters = { ...filters, ...newFilters }
       setFilters(combinedFilters)
-      
+
       const result = await donationService.getDonations(combinedFilters)
       setDonations(result.donations)
       setPagination(result.pagination)
@@ -107,7 +107,7 @@ export const DonationProvider = ({ children }) => {
     try {
       setUpdating(true)
       const result = await donationService.updateDonation(id, updateData)
-      
+
       if (result.success) {
         // Update donation in the donations list
         setDonations(prev =>
@@ -115,18 +115,18 @@ export const DonationProvider = ({ children }) => {
             donation.id === id ? result.donation : donation
           )
         )
-        
+
         // Update in deleted donations list if it's there
         setDeletedDonations(prev =>
           prev.map(donation =>
             donation.id === id ? result.donation : donation
           )
         )
-        
+
         toast.success('Donation updated successfully')
         return { success: true, donation: result.donation }
       }
-      
+
       return { success: false, error: 'Failed to update donation' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to update donation'
@@ -141,7 +141,7 @@ export const DonationProvider = ({ children }) => {
   const getDonationHistory = async (id) => {
     try {
       const result = await donationService.getDonationHistory(id)
-      
+
       if (result.success) {
         setDonationHistory(prev => ({
           ...prev,
@@ -149,7 +149,7 @@ export const DonationProvider = ({ children }) => {
         }))
         return { success: true, history: result.history }
       }
-      
+
       return { success: false, error: 'Failed to get donation history' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to get donation history'
@@ -163,18 +163,18 @@ export const DonationProvider = ({ children }) => {
     try {
       setUpdating(true)
       const result = await donationService.deleteDonation(id, reason)
-      
+
       if (result.success) {
         // Remove from active donations list
         setDonations(prev => prev.filter(donation => donation.id !== id))
-        
+
         // Add to deleted donations list
         setDeletedDonations(prev => [result.donation, ...prev])
-        
+
         toast.success('Donation deleted successfully')
         return { success: true, donation: result.donation }
       }
-      
+
       return { success: false, error: 'Failed to delete donation' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to delete donation'
@@ -190,18 +190,18 @@ export const DonationProvider = ({ children }) => {
     try {
       setUpdating(true)
       const result = await donationService.restoreDonation(id, reason)
-      
+
       if (result.success) {
         // Remove from deleted donations list
         setDeletedDonations(prev => prev.filter(donation => donation.id !== id))
-        
+
         // Add back to active donations list
         setDonations(prev => [result.donation, ...prev])
-        
+
         toast.success('Donation restored successfully')
         return { success: true, donation: result.donation }
       }
-      
+
       return { success: false, error: 'Failed to restore donation' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to restore donation'
@@ -216,16 +216,16 @@ export const DonationProvider = ({ children }) => {
     try {
       setLoading(true)
       const result = await donationService.createDonation(donationData)
-      
+
       if (result.success) {
         setDonations(prev => [result.donation, ...prev])
         toast.success('Donation recorded successfully')
-        
+
         // Send notifications
         if (donationData.donorPhone) {
           toast.success('WhatsApp confirmation sent to donor')
         }
-        
+
         // Send email receipt if requested and email is provided
         if (donationData.sendEmail && donationData.donorEmail) {
           toast.promise(
@@ -237,10 +237,10 @@ export const DonationProvider = ({ children }) => {
             }
           )
         }
-        
+
         return { success: true, donation: result.donation }
       }
-      
+
       return { success: false, error: 'Failed to create donation' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to record donation'
@@ -261,25 +261,25 @@ export const DonationProvider = ({ children }) => {
     try {
       setEmailSending(true)
       const result = await donationService.sendReceiptEmail(donationId, customMessage)
-      
+
       if (result.success) {
         // Update donation in list to reflect email status
         setDonations(prev =>
           prev.map(donation =>
             donation.id === donationId
               ? {
-                  ...donation,
-                  emailSent: true,
-                  emailSentAt: new Date().toISOString()
-                }
+                ...donation,
+                emailSent: true,
+                emailSentAt: new Date().toISOString()
+              }
               : donation
           )
         )
-        
+
         toast.success('Receipt email sent successfully')
         return { success: true, data: result }
       }
-      
+
       return { success: false, error: 'Failed to send email' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to send email'
@@ -294,12 +294,12 @@ export const DonationProvider = ({ children }) => {
     try {
       setEmailSending(true)
       const result = await donationService.resendReceiptEmail(donationId, customMessage)
-      
+
       if (result.success) {
         toast.success('Receipt email re-sent successfully')
         return { success: true, data: result }
       }
-      
+
       return { success: false, error: 'Failed to resend email' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to resend email'
@@ -313,7 +313,7 @@ export const DonationProvider = ({ children }) => {
   const getEmailStatus = async (donationId) => {
     try {
       const result = await donationService.getEmailStatus(donationId)
-      
+
       if (result.success) {
         setEmailStatus(prev => ({
           ...prev,
@@ -321,7 +321,7 @@ export const DonationProvider = ({ children }) => {
         }))
         return { success: true, status: result.emailStatus }
       }
-      
+
       return { success: false, error: 'Failed to get email status' }
     } catch (error) {
       const message = error.response?.data?.error || 'Failed to get email status'
@@ -340,12 +340,12 @@ export const DonationProvider = ({ children }) => {
     try {
       setDonorSearchLoading(true)
       const result = await donationService.searchDonors(query, limit)
-      
+
       if (result.success) {
         setDonorSearchResults(result.donors || [])
         return result.donors || []
       }
-      
+
       return []
     } catch (error) {
       console.error('Failed to search donors:', error)
@@ -408,14 +408,19 @@ export const DonationProvider = ({ children }) => {
       const result = await donationService.getActiveCategories()
       if (result.success) {
         setActiveCategories(result.categories || [])
+        return true
       } else if (result.data && result.data.success) {
         setActiveCategories(result.data.categories || [])
+        return true
       } else {
+        console.warn('fetchActiveCategories: unexpected response shape', result)
         setActiveCategories([])
+        return false
       }
     } catch (error) {
       console.error('Failed to fetch active categories:', error)
       setActiveCategories([])
+      return false
     }
   }
 
@@ -423,13 +428,13 @@ export const DonationProvider = ({ children }) => {
     try {
       setCategoriesLoading(true)
       const result = await donationService.createCategory(categoryData)
-      
+
       setCategories(prev => [result.category, ...prev])
-      
+
       if (result.category.isActive) {
         setActiveCategories(prev => [...prev, result.category])
       }
-      
+
       toast.success('Category created successfully')
       return { success: true, category: result.category }
     } catch (error) {
@@ -445,11 +450,11 @@ export const DonationProvider = ({ children }) => {
     try {
       setCategoriesLoading(true)
       const result = await donationService.updateCategory(id, categoryData)
-      
+
       setCategories(prev =>
         prev.map(cat => (cat.id === id ? result.category : cat))
       )
-      
+
       if (result.category.isActive) {
         setActiveCategories(prev => {
           const exists = prev.find(cat => cat.id === id)
@@ -462,7 +467,7 @@ export const DonationProvider = ({ children }) => {
       } else {
         setActiveCategories(prev => prev.filter(cat => cat.id !== id))
       }
-      
+
       toast.success('Category updated successfully')
       return { success: true, category: result.category }
     } catch (error) {
@@ -478,10 +483,10 @@ export const DonationProvider = ({ children }) => {
     try {
       setCategoriesLoading(true)
       await donationService.deleteCategory(id)
-      
+
       setCategories(prev => prev.filter(cat => cat.id !== id))
       setActiveCategories(prev => prev.filter(cat => cat.id !== id))
-      
+
       toast.success('Category deleted successfully')
       return { success: true }
     } catch (error) {
@@ -496,17 +501,17 @@ export const DonationProvider = ({ children }) => {
   const toggleCategoryStatus = async (id) => {
     try {
       const result = await donationService.toggleCategoryStatus(id)
-      
+
       setCategories(prev =>
         prev.map(cat => (cat.id === id ? result.category : cat))
       )
-      
+
       if (result.category.isActive) {
         setActiveCategories(prev => [...prev, result.category])
       } else {
         setActiveCategories(prev => prev.filter(cat => cat.id !== id))
       }
-      
+
       toast.success(
         `Category ${result.category.isActive ? 'activated' : 'deactivated'} successfully`
       )
@@ -541,14 +546,14 @@ export const DonationProvider = ({ children }) => {
     restoreDonation, // NEW
     setFilters,
     clearFilters,
-    
+
     // Email state & methods
     emailSending,
     emailStatus,
     sendReceiptEmail,
     resendReceiptEmail,
     getEmailStatus,
-    
+
     // Donor search state & methods
     donorSearchResults,
     donorSearchLoading,
@@ -556,7 +561,7 @@ export const DonationProvider = ({ children }) => {
     getDonorSuggestions,
     getDonorByPhone,
     clearDonorSearch,
-    
+
     // Category state & methods
     categories,
     activeCategories,
@@ -568,7 +573,7 @@ export const DonationProvider = ({ children }) => {
     updateCategory,
     deleteCategory,
     toggleCategoryStatus,
-    
+
     // History state
     donationHistory // NEW
   }

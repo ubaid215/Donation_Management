@@ -1,18 +1,18 @@
 import React, { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
-  HandCoins, 
-  BarChart3, 
-  FileText, 
+import {
+  LayoutDashboard,
+  HandCoins,
+  BarChart3,
+  FileText,
   Shield,
   Users,
   LogOut,
   Menu,
   X,
   PenLineIcon,
-  Settings, 
-  UserCircle 
+  Settings,
+  UserCircle
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 
@@ -28,12 +28,12 @@ const Sidebar = () => {
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/audit-logs', icon: Shield, label: 'Audit Logs' },
     { path: '/operators', icon: Users, label: 'Operators' },
-    { path: '/settings', icon: Settings, label: 'Settings' }, 
+    { path: '/settings', icon: Settings, label: 'Settings' },
   ]
 
   const operatorNavItems = [
     { path: '/donations', icon: HandCoins, label: 'Donations' },
-    { path: '/settings', icon: Settings, label: 'Settings' }, 
+    { path: '/settings', icon: Settings, label: 'Settings' },
   ]
 
   const navItems = isAdmin() ? adminNavItems : operatorNavItems
@@ -43,10 +43,9 @@ const Sidebar = () => {
       to={item.path}
       onClick={() => setIsOpen(false)}
       className={({ isActive }) =>
-        `flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-          isActive
-            ? 'bg-gray-900 text-white'
-            : 'text-gray-700 hover:bg-gray-100'
+        `flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${isActive
+          ? 'bg-gray-900 text-white'
+          : 'text-gray-700 hover:bg-gray-100'
         }`
       }
     >
@@ -76,9 +75,8 @@ const Sidebar = () => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}

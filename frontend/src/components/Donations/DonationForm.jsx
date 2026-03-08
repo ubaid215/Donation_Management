@@ -3,15 +3,15 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { 
-  PlusCircle, 
-  Loader2, 
-  Search, 
-  User, 
-  Phone, 
-  DollarSign, 
-  X, 
-  Mail, 
+import {
+  PlusCircle,
+  Loader2,
+  Search,
+  User,
+  Phone,
+  DollarSign,
+  X,
+  Mail,
   Send,
   Bell,
   BellOff,
@@ -20,7 +20,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import useDonations from '../../hooks/useDonations.js'
-import useAuth from '../../hooks/useAuth.js' 
+import useAuth from '../../hooks/useAuth.js'
 import toast from 'react-hot-toast'
 
 // Popular country codes
@@ -57,25 +57,27 @@ const createDonationSchema = (categories = []) => {
 }
 
 const DonationForm = ({ onSubmitSuccess }) => {
-  const { 
-    createDonation, 
+  const {
+    createDonation,
     activeCategories,
+    categoriesLoading,
+    fetchActiveCategories,
     getDonorSuggestions,
-    getDonorByPhone 
+    getDonorByPhone
   } = useDonations()
-  
+
   const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showCustomPurpose, setShowCustomPurpose] = useState(false)
   const [submissionStage, setSubmissionStage] = useState('') // Track what's happening
-  
+
   // Donor search state
   const [searchQuery, setSearchQuery] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [selectedDonor, setSelectedDonor] = useState(null)
-  
+
   const searchTimeoutRef = useRef(null)
   const wrapperRef = useRef(null)
 
@@ -109,6 +111,14 @@ const DonationForm = ({ onSubmitSuccess }) => {
   const donorPhone = watch('donorPhone')
   const sendWhatsApp = watch('sendWhatsApp')
   const isAdmin = user.role === 'ADMIN'
+
+  // Ensure active categories are loaded on mount (fixes race condition with auth init)
+  useEffect(() => {
+    if (activeCategories.length === 0 && !categoriesLoading) {
+      fetchActiveCategories()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -146,7 +156,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
       notes: '',
       sendWhatsApp: true
     })
-    
+
     setSearchQuery('')
     setSelectedDonor(null)
     setSuggestions([])
@@ -191,7 +201,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
   // Extract country code
   const extractCountryCode = (fullPhone) => {
     if (!fullPhone) return null
-    
+
     for (const country of POPULAR_COUNTRIES) {
       if (fullPhone.startsWith(country.code)) {
         return country
@@ -204,19 +214,19 @@ const DonationForm = ({ onSubmitSuccess }) => {
   const handleSuggestionClick = async (suggestion) => {
     try {
       setSearchLoading(true)
-      
+
       const donor = await getDonorByPhone(suggestion.donorPhone)
-      
+
       if (donor) {
         setValue('donorName', donor.donorName)
         setValue('donorPhone', donor.donorPhone)
-        
+
         if (donor.donorEmail) {
           setValue('donorEmail', donor.donorEmail)
         } else {
           setValue('donorEmail', '')
         }
-        
+
         if (donor.lastPurpose) {
           const categoryExists = activeCategories.some(cat => cat.name === donor.lastPurpose)
           if (categoryExists) {
@@ -231,16 +241,16 @@ const DonationForm = ({ onSubmitSuccess }) => {
           setValue('customPurpose', '')
           setShowCustomPurpose(false)
         }
-        
+
         if (donor.lastPaymentMethod) {
           setValue('paymentMethod', donor.lastPaymentMethod)
         } else {
           setValue('paymentMethod', 'CASH')
         }
-        
+
         setValue('amount', '')
         setValue('notes', '')
-        
+
         setSelectedDonor(donor)
         setSearchQuery(donor.donorName)
         setShowSuggestions(false)
@@ -278,11 +288,11 @@ const DonationForm = ({ onSubmitSuccess }) => {
 
   const onSubmit = async (data) => {
     setIsSubmitting(true)
-    
+
     try {
       // Stage 1: Preparing data
       setSubmissionStage('Preparing donation...')
-      
+
       const donationData = {
         ...data,
         donorPhone: data.donorPhone,
@@ -290,32 +300,32 @@ const DonationForm = ({ onSubmitSuccess }) => {
         donorEmail: data.donorEmail && data.donorEmail.trim() !== '' ? data.donorEmail.trim() : undefined,
         sendWhatsApp: data.sendWhatsApp
       }
-      
+
       delete donationData.customPurpose
-      
+
       // Stage 2: Sending WhatsApp
       if (data.donorPhone) {
         const templateType = data.sendWhatsApp ? 'donation confirmation' : 'receipt confirmation'
         setSubmissionStage(`Sending WhatsApp ${templateType}...`)
       }
-      
+
       // Stage 3: Call the API (WhatsApp happens first on backend)
       const result = await createDonation(donationData)
-      
+
       if (result.success) {
         // Stage 4: Success
         setSubmissionStage('Donation recorded successfully!')
-        
+
         // Reset form
         resetForm()
-        
+
         // Build success message
         let successMessage = '✅ Donation recorded successfully!'
-        
+
         if (data.donorEmail && data.donorEmail.trim() !== '') {
           successMessage += ' 📧 Email receipt will be sent automatically.'
         }
-        
+
         if (data.donorPhone) {
           if (isAdmin) {
             if (data.sendWhatsApp) {
@@ -327,9 +337,9 @@ const DonationForm = ({ onSubmitSuccess }) => {
             successMessage += ' 📱 WhatsApp confirmation sent.'
           }
         }
-        
+
         toast.success(successMessage, { duration: 5000 })
-        
+
         if (onSubmitSuccess) {
           onSubmitSuccess()
         }
@@ -338,11 +348,11 @@ const DonationForm = ({ onSubmitSuccess }) => {
       }
     } catch (error) {
       console.error('Donation submission error:', error)
-      
+
       // Check if it's a WhatsApp-specific error
       if (error.code === 'WHATSAPP_FAILED' || error.message?.includes('WhatsApp')) {
         const details = error.details || {}
-        
+
         if (details.canRetry) {
           // Network/connectivity issue
           toast.error(
@@ -405,7 +415,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
           </span>
         )}
       </div>
-      
+
       {/* Submission Progress Indicator */}
       {isSubmitting && submissionStage && (
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -422,7 +432,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
           </div>
         </div>
       )}
-      
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Donor Search */}
         <div ref={wrapperRef}>
@@ -525,7 +535,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               <p className="mt-1 text-sm text-danger-600">{errors.donorName.message}</p>
             )}
           </div>
-          
+
           {/* WhatsApp Number */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -539,7 +549,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
                 placeholder="+923001234567"
                 disabled={isSubmitting}
               />
-              
+
               {/* Quick Country Code Buttons */}
               <div className="flex flex-wrap gap-2">
                 <span className="text-xs text-gray-500">Quick select:</span>
@@ -604,7 +614,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               </p>
             )}
           </div>
-          
+
           {/* Amount */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -627,7 +637,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               <p className="mt-1 text-sm text-danger-600">{errors.amount.message}</p>
             )}
           </div>
-          
+
           {/* Purpose */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -636,21 +646,25 @@ const DonationForm = ({ onSubmitSuccess }) => {
             <select
               {...register('purpose')}
               className={`input ${errors.purpose ? 'input-error' : ''}`}
-              disabled={isSubmitting}
+              disabled={isSubmitting || categoriesLoading}
             >
-              <option value="">Select Purpose</option>
+              {categoriesLoading ? (
+                <option value="">Loading categories...</option>
+              ) : (
+                <option value="">Select Purpose</option>
+              )}
               {activeCategories.map(category => (
                 <option key={category.id} value={category.name}>
                   {category.name}
                 </option>
               ))}
-              <option value="CUSTOM">Other (Custom Purpose)</option>
+              {!categoriesLoading && <option value="CUSTOM">Other (Custom Purpose)</option>}
             </select>
             {errors.purpose && !showCustomPurpose && (
               <p className="mt-1 text-sm text-danger-600">{errors.purpose.message}</p>
             )}
           </div>
-          
+
           {/* Custom Purpose */}
           {showCustomPurpose && (
             <div className="md:col-span-2">
@@ -669,7 +683,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               )}
             </div>
           )}
-          
+
           {/* Payment Method */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -688,7 +702,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               <p className="mt-1 text-sm text-danger-600">{errors.paymentMethod.message}</p>
             )}
           </div>
-          
+
           {/* WhatsApp Template Toggle (Admin Only) */}
           {isAdmin && (
             <div className="md:col-span-2">
@@ -702,7 +716,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
                       WhatsApp Template Type
                     </label>
                     <p className="text-xs text-gray-500 mt-1">
-                      {sendWhatsApp 
+                      {sendWhatsApp
                         ? '✅ ON = Send "Donation Confirmation" template'
                         : '📧 OFF = Send "Receipt Confirmation" template'}
                     </p>
@@ -721,7 +735,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
               </div>
             </div>
           )}
-          
+
           {/* Notes */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -736,7 +750,7 @@ const DonationForm = ({ onSubmitSuccess }) => {
             />
           </div>
         </div>
-        
+
         {/* Submit Button Section */}
         <div className="pt-6 space-y-4">
           {/* Action buttons row */}

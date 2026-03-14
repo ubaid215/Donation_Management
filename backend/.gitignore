@@ -1,6 +1,41 @@
-# Environment variables
+# ── Dependencies ────────────────────────────
+node_modules/
+
+# ── Environment variables ─────────────────────
 .env
 .env.local
 .env.development
 .env.production
 .env.test
+
+# ── Prisma generated client ───────────────────
+# Generated on each machine via `prisma generate`
+# Never commit — this was the source of your git conflict
+generated/
+.prisma/
+
+# ── Logs ──────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Build / runtime ───────────────────────────
+dist/
+build/
+
+# ── OS / Editor ───────────────────────────────
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── Misc ──────────────────────────────────────
+*.local

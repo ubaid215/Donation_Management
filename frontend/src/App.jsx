@@ -15,6 +15,7 @@ import AuditLogs from './pages/AuditLogs.jsx'
 import Operators from './pages/Operators.jsx'
 import NotFound from './pages/NotFound.jsx'
 import Categories from './pages/Categories.jsx'
+import Khidmat from './pages/Khidmat.jsx'
 
 // Password reset pages
 import ForgotPassword from './pages/ForgotPassword.jsx'
@@ -40,6 +41,7 @@ function App() {
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/donations" element={<Donations />} />
+                <Route path="/khidmat" element={<Khidmat />} />
                 <Route path="/trash" element={<DeletedDonations />} />
                 <Route path="/categories" element={<Categories />} />
                 <Route path="/analytics" element={<Analytics />} />

@@ -1,12 +1,20 @@
+// ============================================================
+// schema.prisma — Donation Management System
+// ============================================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DATABASE_URL")
 }
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
 
 enum Role {
   ADMIN
@@ -21,13 +29,21 @@ enum PaymentMethod {
   CHEQUE
 }
 
+
+enum KhidmatStatus {
+  COMPLETED    // Service fully completed
+  PARTIAL      // Service partially completed / half done
+  RECORD_ONLY  // Just recording — no service yet
+}
+
 enum AuditAction {
+  // ── Donation ──────────────────────────────
   DONATION_CREATED
   DONATION_EMAIL_SENT
-  EMAIL_SENT              // For receipt emails
-  EMAIL_RESENT            // For resend operations
-  EMAIL_FAILED            // For failed email attempts
-  WHATSAPP_SENT           //  WhatsApp notification sent
+  EMAIL_SENT
+  EMAIL_RESENT
+  EMAIL_FAILED
+  WHATSAPP_SENT
   WHATSAPP_DELIVERED
   WHATSAPP_READ
   WHATSAPP_FAILED
@@ -36,89 +52,102 @@ enum AuditAction {
   DONATION_DELETED
   DONATION_RESTORED
   WHATSAPP_SKIPPED
+
+  // ── Auth / User ───────────────────────────
   OPERATOR_LOGIN
   ADMIN_LOGIN
-  PDF_EXPORTED
   EMAIL_CHANGED
   USER_CREATED
   USER_UPDATED
   PASSWORD_CHANGED
-  // 🔐  FOR PASSWORD RESET
   PASSWORD_RESET_REQUESTED
   PASSWORD_RESET_COMPLETED
+
+  // ── Reports ───────────────────────────────
+  PDF_EXPORTED
+
+  // ── KhidmatRecord ─────────────────────────
+  KHIDMAT_CREATED
+  KHIDMAT_UPDATED
+  KHIDMAT_DELETED
+  KHIDMAT_RESTORED
+  KHIDMAT_WHATSAPP_SENT
+  KHIDMAT_WHATSAPP_FAILED
+  KHIDMAT_WHATSAPP_SKIPPED
 }
 
+// ─────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────
+
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String
-  name          String
-  phone         String?
-  role          Role     @default(OPERATOR)
-  isActive      Boolean  @default(true)
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         Role      @default(OPERATOR)
+  isActive     Boolean   @default(true)
 
-  resetPasswordToken   String?   @unique
-  resetPasswordExpiry  DateTime?
+  resetPasswordToken  String?   @unique
+  resetPasswordExpiry DateTime?
 
-  lastLogin     DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  lastLogin DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  // ✅ EXPLICIT BACK-RELATIONS
-  donationsCreated Donation[] @relation("OperatorDonations")
-  donationsDeleted Donation[] @relation("DeletedDonations")
-
-  auditLogs     AuditLog[]
+  // Relations
+  donationsCreated Donation[]      @relation("OperatorDonations")
+  donationsDeleted Donation[]      @relation("DeletedDonations")
+  khidmatCreated   KhidmatRecord[] @relation("KhidmatOperator")
+  khidmatDeleted   KhidmatRecord[] @relation("KhidmatDeletedBy")
+  auditLogs        AuditLog[]
 
   @@map("users")
 }
 
-
 model Donation {
-  id              String        @id @default(uuid())
-  donorName       String
-  donorEmail      String?
-  donorPhone      String
-  amount          Decimal       @db.Decimal(10, 2)
-  purpose         String
-  paymentMethod   PaymentMethod
-  notes           String?
-  date            DateTime      @default(now())
+  id            String        @id @default(uuid())
+  donorName     String
+  donorEmail    String?
+  donorPhone    String
+  amount        Decimal       @db.Decimal(10, 2)
+  purpose       String
+  paymentMethod PaymentMethod
+  notes         String?
+  date          DateTime      @default(now())
 
-  emailSent       Boolean       @default(false)
-  emailSentAt     DateTime?
-  emailError      String?
-  receiptNumber   String?
+  emailSent   Boolean   @default(false)
+  emailSentAt DateTime?
+  emailError  String?
+  receiptNumber String?
 
-  whatsappSent       Boolean       @default(false)
-  whatsappSentAt     DateTime?
-  whatsappMessageId  String?      @unique
-  whatsappError      String?
+  whatsappSent      Boolean  @default(false)
+  whatsappSentAt    DateTime?
+  whatsappMessageId String?  @unique
+  whatsappError     String?
 
-  // New status tracking fields
-   whatsappStatus        String?      @default("PENDING")  // PENDING, SENT, DELIVERED, READ, FAILED
+  whatsappStatus          String?   @default("PENDING")
   whatsappStatusUpdatedAt DateTime?
-  whatsappDeliveryDetails Json?      // Store delivery details
-  whatsappReadAt        DateTime?    // When message was read
-  templateUsed          String?      // Template name used
-  templateType          String?      // Template type
-  
+  whatsappDeliveryDetails Json?
+  whatsappReadAt          DateTime?
+  templateUsed            String?
+  templateType            String?
 
-  operatorId      String
-  categoryId      String?
-  deletedBy       String?
+  operatorId String
+  categoryId String?
+  deletedBy  String?
 
-  operator        User  @relation("OperatorDonations", fields: [operatorId], references: [id])
-  deletedByUser   User? @relation("DeletedDonations", fields: [deletedBy], references: [id])
+  operator      User              @relation("OperatorDonations", fields: [operatorId], references: [id])
+  deletedByUser User?             @relation("DeletedDonations", fields: [deletedBy], references: [id])
+  category      DonationCategory? @relation(fields: [categoryId], references: [id])
 
-  category        DonationCategory? @relation(fields: [categoryId], references: [id])
+  isDeleted      Boolean  @default(false)
+  deletedAt      DateTime?
+  deletionReason String?
 
-  isDeleted       Boolean  @default(false)
-  deletedAt       DateTime?
-  deletionReason  String?
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("donations")
   @@index([operatorId])
@@ -126,38 +155,88 @@ model Donation {
   @@index([deletedBy])
 }
 
-
 model DonationCategory {
-  id            String        @id @default(uuid())
-  name          String        @unique
-  description   String?
-  icon          String?       @default("Tag")        
-  color         String?       @default("#3b82f6")    
-  isActive      Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
-  donations     Donation[]
-  
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  icon        String?  @default("Tag")
+  color       String?  @default("#3b82f6")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  donations      Donation[]
+  khidmatRecords KhidmatRecord[] // ← KhidmatRecord also links to a category
+
   @@map("donation_categories")
 }
 
+// ─────────────────────────────────────────────
+// NEW: KhidmatRecord
+// Records a service (khidmat) rendered to a person.
+// Supports WhatsApp notification based on status.
+// ─────────────────────────────────────────────
+model KhidmatRecord {
+  id   String @id @default(uuid())
+
+  // ── Person details ────────────────────────
+  name        String
+  phone       String
+  address     String?           // optional
+
+  // ── Service details ───────────────────────
+  amount      Decimal           @db.Decimal(10, 2)
+  categoryId  String
+  status      KhidmatStatus     @default(RECORD_ONLY)
+  notes       String?
+
+  // ── WhatsApp tracking ─────────────────────
+  whatsappSent              Boolean   @default(false)
+  whatsappSentAt            DateTime?
+  whatsappMessageId         String?   @unique
+  whatsappError             String?
+  whatsappStatus            String?   @default("PENDING")  // PENDING | SENT | DELIVERED | READ | FAILED
+  whatsappStatusUpdatedAt   DateTime?
+
+  // ── Soft-delete ───────────────────────────
+  isDeleted      Boolean   @default(false)
+  deletedAt      DateTime?
+  deletionReason String?
+
+  // ── Meta ──────────────────────────────────
+  operatorId String
+  deletedBy  String?
+  date       DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // ── Relations ────────────────────────────
+  operator      User             @relation("KhidmatOperator",   fields: [operatorId], references: [id])
+  deletedByUser User?            @relation("KhidmatDeletedBy",  fields: [deletedBy],  references: [id])
+  category      DonationCategory @relation(fields: [categoryId], references: [id])
+
+  @@map("khidmat_records")
+  @@index([operatorId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([deletedBy])
+}
+
 model AuditLog {
-  id            String        @id @default(uuid())
-  action        AuditAction
-  entityType    String
-  entityId      String?
-  description   String
-  userRole      Role
-  userId        String
-  ipAddress     String?
-  userAgent     String?
-  metadata      Json?
-  timestamp     DateTime      @default(now())
-  
-  // Relations
-  user          User          @relation(fields: [userId], references: [id])
-  
+  id          String      @id @default(uuid())
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  description String
+  userRole    Role
+  userId      String
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  timestamp   DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
   @@map("audit_logs")
   @@index([timestamp])
   @@index([userId])

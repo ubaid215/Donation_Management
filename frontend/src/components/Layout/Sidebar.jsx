@@ -12,7 +12,8 @@ import {
   X,
   PenLineIcon,
   Settings,
-  UserCircle
+  UserCircle,
+  HandHelpingIcon
 } from 'lucide-react'
 import useAuth from '../../hooks/useAuth.js'
 
@@ -23,6 +24,7 @@ const Sidebar = () => {
   const adminNavItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/donations', icon: HandCoins, label: 'Donations' },
+    { path: '/khidmat', icon: HandHelpingIcon, label: 'Khidmat Record' },
     { path: '/categories', icon: PenLineIcon, label: 'Categories' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/reports', icon: FileText, label: 'Reports' },

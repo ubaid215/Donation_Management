@@ -16,6 +16,7 @@ import donationRoutes from './features/donations/donation.routes.js';
 import adminRoutes from './features/admin/admin.routes.js';
 import reportRoutes from './features/reports/reports.routes.js';
 import auditRoutes from './features/audit/audit.routes.js';
+import khidmatRoutes from './features/khidmatRecord/khidmat.routes.js';
 import whatsappTestRoutes from './features/whatsapp/whatsapp-test.route.js';
 import webhookRoutes from './routes/webhook.routes.js';
 
@@ -168,6 +169,7 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/khidmat', khidmatRoutes);
 app.use('/api/whatsapp-test', whatsappTestRoutes);
 
 // ========== ERROR HANDLING ==========

@@ -1,98 +1,54 @@
 // ============================================================
 // features/khidmatRecord/khidmat.routes.js
-// All routes for the KhidmatRecord feature
-//
-// Mount in app.js:
-//   import khidmatRoutes from './features/khidmatRecord/khidmat.routes.js';
-//   app.use('/api/khidmat', khidmatRoutes);
 // ============================================================
 
-import { Router } from 'express';
-import {
-  authMiddleware,
-  adminOnlyMiddleware
-} from '../../middlewares/auth.js';
+import { Router } from 'express'
+import { authMiddleware, adminOnlyMiddleware } from '../../middlewares/auth.js'
 
 import {
-  createRecord,
-  getAllRecords,
-  getRecord,
-  updateRecord,
-  deleteRecord,
-  restoreRecord,
-  getStats,
-  sendWhatsApp
-} from './khidmat.controller.js';
-
-// ── Report controllers ───────────────────────────────────────
-import {
-  generateKhidmatReport,
-  generateKhidmatCategoryReport,
-  generateKhidmatReceipt
-} from './khidmatReport.controller.js';
+  createRecord, getAllRecords, getRecord, updateRecord,
+  deleteRecord, restoreRecord, addPayment, getPayments,
+  getStats, getAnalytics, sendWhatsApp
+} from './khidmat.controller.js'
 
 import {
-  createKhidmatValidator,
-  updateKhidmatValidator,
-  deleteKhidmatValidator,
-  listKhidmatValidator,
-  sendWhatsappValidator
-} from './khidmat.validator.js';
+  createKhidmatValidator, updateKhidmatValidator,
+  deleteKhidmatValidator, listKhidmatValidator,
+  sendWhatsappValidator, addPaymentValidator
+} from './khidmat.validator.js'
 
-const router = Router();
+import {
+  generateKhidmatReport, generateKhidmatCategoryReport, generateKhidmatReceipt
+} from './khidmatReport.controller.js'
 
-// All routes require a valid JWT
-router.use(authMiddleware);
+const router = Router()
 
-// ─────────────────────────────────────────────
-// REPORTS  (placed before /:id to avoid param conflicts)
-// ─────────────────────────────────────────────
+router.use(authMiddleware)
 
-// GET /api/khidmat/reports/full         — full filterable PDF
-router.get('/reports/full', generateKhidmatReport);
+// ── Static routes first (before /:id) ────────
+router.get('/stats',     adminOnlyMiddleware, getStats)
+router.get('/analytics', getAnalytics)               // accessible to all auth users
 
-// GET /api/khidmat/reports/category     — per-category PDF
-// Query: ?categoryId=<uuid>  OR  ?categoryName=<name>
-router.get('/reports/category', generateKhidmatCategoryReport);
+// ── PDF Reports ───────────────────────────────
+router.get('/reports/full',          generateKhidmatReport)
+router.get('/reports/category',      generateKhidmatCategoryReport)
+router.get('/reports/receipt/:id',   generateKhidmatReceipt)
 
-// GET /api/khidmat/reports/receipt/:id  — single-record receipt PDF
-router.get('/reports/receipt/:id', generateKhidmatReceipt);
+// ── CRUD ──────────────────────────────────────
+router.get('/',    listKhidmatValidator,   getAllRecords)
+router.post('/',   createKhidmatValidator, createRecord)
+router.get('/:id', getRecord)
+router.put('/:id', updateKhidmatValidator, updateRecord)
+router.delete('/:id', deleteKhidmatValidator, deleteRecord)
 
-// ─────────────────────────────────────────────
-// STATS  — Admin only
-// GET /api/khidmat/stats
-// ─────────────────────────────────────────────
-router.get('/stats', adminOnlyMiddleware, getStats);
+// ── Restore (Admin) ───────────────────────────
+router.post('/:id/restore', adminOnlyMiddleware, restoreRecord)
 
-// ─────────────────────────────────────────────
-// CRUD
-// ─────────────────────────────────────────────
+// ── Payments / installments ───────────────────
+router.post('/:id/payments', addPaymentValidator, addPayment)
+router.get('/:id/payments',  getPayments)
 
-// GET  /api/khidmat          — list (paginated)
-router.get('/',    listKhidmatValidator,   getAllRecords);
+// ── WhatsApp ──────────────────────────────────
+router.post('/:id/whatsapp', sendWhatsappValidator, sendWhatsApp)
 
-// POST /api/khidmat          — create
-router.post('/',   createKhidmatValidator, createRecord);
-
-// GET  /api/khidmat/:id      — single record
-router.get('/:id', getRecord);
-
-// PUT  /api/khidmat/:id      — update
-router.put('/:id', updateKhidmatValidator, updateRecord);
-
-// DELETE /api/khidmat/:id   — soft delete
-router.delete('/:id', deleteKhidmatValidator, deleteRecord);
-
-// ─────────────────────────────────────────────
-// RESTORE  — Admin only
-// POST /api/khidmat/:id/restore
-// ─────────────────────────────────────────────
-router.post('/:id/restore', adminOnlyMiddleware, restoreRecord);
-
-// ─────────────────────────────────────────────
-// WHATSAPP  — Send notification (button click)
-// POST /api/khidmat/:id/whatsapp
-// ─────────────────────────────────────────────
-router.post('/:id/whatsapp', sendWhatsappValidator, sendWhatsApp);
-
-export default router;
+export default router

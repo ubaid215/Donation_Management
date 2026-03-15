@@ -1,40 +1,32 @@
 /* eslint-disable no-unused-vars */
 // ============================================================
 // components/khidmat/KhidmatForm.jsx
-// Create / Edit drawer for KhidmatRecord
-// Categories sourced from DonationContext.activeCategories
+// Create / Edit drawer — now includes receivedAmount field
 // ============================================================
 
 import React, { useState, useEffect, useRef } from 'react'
 import {
   X, User, Phone, MapPin, DollarSign, Tag,
   CheckCircle2, AlertCircle, FileText, Calendar,
-  Loader2, Save, Plus
+  Loader2, Save, Plus, TrendingDown
 } from 'lucide-react'
 import { useKhidmat, STATUS_COLORS } from '../../context/KhidmatContext'
 import { useDonations } from '../../context/DonationContext'
 
-// ─────────────────────────────────────────────
-// Status picker options
-// ─────────────────────────────────────────────
 const STATUS_OPTIONS = [
-  { value: 'COMPLETED',   label: 'Completed',   desc: 'Service fully rendered', icon: CheckCircle2, colors: STATUS_COLORS.COMPLETED   },
-  { value: 'PARTIAL',     label: 'Partial',     desc: 'Service partially done', icon: AlertCircle,  colors: STATUS_COLORS.PARTIAL     },
-  { value: 'RECORD_ONLY', label: 'Record Only', desc: 'Just adding a record',   icon: FileText,     colors: STATUS_COLORS.RECORD_ONLY },
+  { value: 'COMPLETED',   label: 'Completed',   desc: 'Fully received',   icon: CheckCircle2, colors: STATUS_COLORS.COMPLETED   },
+  { value: 'PARTIAL',     label: 'Partial',     desc: 'Partially received',icon: AlertCircle,  colors: STATUS_COLORS.PARTIAL     },
+  { value: 'RECORD_ONLY', label: 'Record Only', desc: 'No payment yet',   icon: FileText,     colors: STATUS_COLORS.RECORD_ONLY },
 ]
 
 const EMPTY_FORM = {
-  name: '', phone: '', address: '', amount: '',
+  name: '', phone: '', address: '', amount: '', receivedAmount: '',
   categoryId: '', status: 'RECORD_ONLY', notes: '',
   date: new Date().toISOString().split('T')[0],
 }
 
-// ─────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────
 const KhidmatForm = () => {
   const { showForm, editingRecord, closeForm, createRecord, updateRecord } = useKhidmat()
-  // ← Pull categories from existing DonationContext — no separate fetch needed
   const { activeCategories, categoriesLoading, fetchActiveCategories } = useDonations()
 
   const [form,       setForm]       = useState(EMPTY_FORM)
@@ -42,38 +34,34 @@ const KhidmatForm = () => {
   const [errors,     setErrors]     = useState({})
   const firstInputRef = useRef(null)
 
-  // Populate form when editing
+  // Populate when editing
   useEffect(() => {
     if (editingRecord) {
       setForm({
-        name:       editingRecord.name       || '',
-        phone:      editingRecord.phone      || '',
-        address:    editingRecord.address    || '',
-        amount:     editingRecord.amount     || '',
-        categoryId: editingRecord.categoryId || '',
-        status:     editingRecord.status     || 'RECORD_ONLY',
-        notes:      editingRecord.notes      || '',
-        date:       editingRecord.date
+        name:           editingRecord.name           || '',
+        phone:          editingRecord.phone          || '',
+        address:        editingRecord.address        || '',
+        amount:         editingRecord.amount         || '',
+        receivedAmount: editingRecord.receivedAmount || '',
+        categoryId:     editingRecord.categoryId     || '',
+        status:         editingRecord.status         || 'RECORD_ONLY',
+        notes:          editingRecord.notes          || '',
+        date:           editingRecord.date
           ? new Date(editingRecord.date).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0],
       })
-    } else {
-      setForm(EMPTY_FORM)
-    }
+    } else { setForm(EMPTY_FORM) }
     setErrors({})
   }, [editingRecord, showForm])
 
-  // Ensure activeCategories are loaded when the form opens
   useEffect(() => {
     if (showForm && activeCategories.length === 0) fetchActiveCategories()
   }, [showForm])
 
-  // Focus first input
   useEffect(() => {
     if (showForm) setTimeout(() => firstInputRef.current?.focus(), 80)
   }, [showForm])
 
-  // Escape to close
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') closeForm() }
     window.addEventListener('keydown', h)
@@ -83,17 +71,33 @@ const KhidmatForm = () => {
   if (!showForm) return null
 
   const set = (field) => (e) => {
-    setForm(prev => ({ ...prev, [field]: e.target.value }))
+    const val = e.target.value
+    setForm(prev => {
+      const next = { ...prev, [field]: val }
+      // Auto-derive status from amounts
+      if (field === 'amount' || field === 'receivedAmount') {
+        const total    = parseFloat(field === 'amount' ? val : next.amount) || 0
+        const received = parseFloat(field === 'receivedAmount' ? val : next.receivedAmount) || 0
+        if (total > 0) {
+          if (received <= 0)       next.status = 'RECORD_ONLY'
+          else if (received >= total) next.status = 'COMPLETED'
+          else                     next.status = 'PARTIAL'
+        }
+      }
+      return next
+    })
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }))
   }
 
   const validate = () => {
     const e = {}
-    if (!form.name.trim())   e.name       = 'Name is required'
-    if (!form.phone.trim())  e.phone      = 'Phone is required'
+    if (!form.name.trim())  e.name       = 'Name is required'
+    if (!form.phone.trim()) e.phone      = 'Phone is required'
     if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0)
-                              e.amount     = 'Valid amount is required'
-    if (!form.categoryId)    e.categoryId = 'Please select a category'
+                             e.amount     = 'Valid pledged amount is required'
+    if (form.receivedAmount !== '' && Number(form.receivedAmount) > Number(form.amount))
+                             e.receivedAmount = 'Cannot exceed pledged amount'
+    if (!form.categoryId)   e.categoryId = 'Please select a category'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -103,23 +107,29 @@ const KhidmatForm = () => {
     if (!validate()) return
     setSubmitting(true)
     try {
-      const payload = { ...form, amount: parseFloat(form.amount) }
-      if (editingRecord) {
-        await updateRecord(editingRecord.id, payload)
-      } else {
-        await createRecord(payload)
+      const payload = {
+        ...form,
+        amount:         parseFloat(form.amount),
+        receivedAmount: form.receivedAmount !== '' ? parseFloat(form.receivedAmount) : 0,
       }
-    } catch (_) { /* toast already fired in context */ }
+      if (editingRecord) await updateRecord(editingRecord.id, payload)
+      else               await createRecord(payload)
+    // eslint-disable-next-line no-empty
+    } catch (_) {}
     finally { setSubmitting(false) }
   }
 
+  // Progress bar
+  const total    = parseFloat(form.amount)         || 0
+  const received = parseFloat(form.receivedAmount) || 0
+  const pct      = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0
+  const remaining = Math.max(0, total - received)
+
   return (
     <>
-      {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={closeForm} />
 
-      {/* Drawer */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[480px] flex flex-col bg-white shadow-2xl overflow-hidden">
+      <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[500px] flex flex-col bg-white shadow-2xl overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-700 to-blue-800">
@@ -144,25 +154,17 @@ const KhidmatForm = () => {
         {/* Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
 
-          {/* Status picker */}
+          {/* Status picker — auto-updates from amounts */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Status</label>
             <div className="grid grid-cols-3 gap-2">
               {STATUS_OPTIONS.map(opt => {
-                const Icon   = opt.icon
-                const active = form.status === opt.value
+                const Icon = opt.icon; const active = form.status === opt.value
                 return (
-                  <button
-                    key={opt.value}
-                    type="button"
+                  <button key={opt.value} type="button"
                     onClick={() => setForm(prev => ({ ...prev, status: opt.value }))}
-                    className={`
-                      relative flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 text-center transition-all
-                      ${active
-                        ? `${opt.colors.bg} ${opt.colors.border} ${opt.colors.text} shadow-sm scale-[1.02]`
-                        : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white'
-                      }
-                    `}
+                    className={`relative flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 text-center transition-all
+                      ${active ? `${opt.colors.bg} ${opt.colors.border} ${opt.colors.text} shadow-sm scale-[1.02]` : 'border-slate-200 text-slate-500 hover:border-slate-300 bg-white'}`}
                   >
                     <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
                     <span className="text-xs font-semibold leading-tight">{opt.label}</span>
@@ -184,21 +186,42 @@ const KhidmatForm = () => {
             </Field>
           </div>
 
-          {/* Amount + Category */}
+          {/* Total pledged + Received amount */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Amount (Rs)" icon={<DollarSign size={15} />} error={errors.amount} required>
-              <input type="number" min="0" step="0.01" value={form.amount} onChange={set('amount')} placeholder="0.00" className={inputCls(errors.amount)} />
+            <Field label="Total Promised (Rs)" icon={<DollarSign size={15} />} error={errors.amount} required>
+              <input type="number" min="0" step="0.01" value={form.amount}
+                onChange={set('amount')} placeholder="e.g. 10000" className={inputCls(errors.amount)} />
             </Field>
-
-            <Field label="Category" icon={<Tag size={15} />} error={errors.categoryId} required>
-              <select value={form.categoryId} onChange={set('categoryId')} disabled={categoriesLoading} className={inputCls(errors.categoryId)}>
-                <option value="">{categoriesLoading ? 'Loading…' : 'Select category'}</option>
-                {activeCategories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
+            <Field label="Initially Received (Rs)" icon={<TrendingDown size={15} />} error={errors.receivedAmount}>
+              <input type="number" min="0" step="0.01" value={form.receivedAmount}
+                onChange={set('receivedAmount')} placeholder="e.g. 4000 (optional)" className={inputCls(errors.receivedAmount)} />
             </Field>
           </div>
+
+          {/* Progress bar — visible when both amounts are entered */}
+          {total > 0 && (
+            <div className="bg-slate-50 rounded-xl p-3 space-y-2">
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Received: <strong className="text-emerald-600">Rs {received.toLocaleString('en-IN')}</strong></span>
+                <span>Remaining: <strong className="text-amber-600">Rs {remaining.toLocaleString('en-IN')}</strong></span>
+              </div>
+              <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-300'}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-400 text-right">{pct}% collected</p>
+            </div>
+          )}
+
+          {/* Category */}
+          <Field label="Category" icon={<Tag size={15} />} error={errors.categoryId} required>
+            <select value={form.categoryId} onChange={set('categoryId')} disabled={categoriesLoading} className={inputCls(errors.categoryId)}>
+              <option value="">{categoriesLoading ? 'Loading…' : 'Select category'}</option>
+              {activeCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+            </select>
+          </Field>
 
           {/* Address */}
           <Field label="Address" icon={<MapPin size={15} />}>
@@ -214,7 +237,6 @@ const KhidmatForm = () => {
           <Field label="Notes" icon={<FileText size={15} />}>
             <textarea value={form.notes} onChange={set('notes')} placeholder="Any additional notes…" rows={3} className={`${inputCls()} resize-none`} />
           </Field>
-
         </form>
 
         {/* Footer */}
@@ -222,11 +244,9 @@ const KhidmatForm = () => {
           <button type="button" onClick={closeForm} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-100 transition-colors">
             Cancel
           </button>
-          <button onClick={handleSubmit} disabled={submitting} className="flex-1 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm">
-            {submitting
-              ? <><Loader2 size={15} className="animate-spin" /> Saving…</>
-              : <><Save size={15} /> {editingRecord ? 'Save Changes' : 'Create Record'}</>
-            }
+          <button onClick={handleSubmit} disabled={submitting}
+            className="flex-1 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm">
+            {submitting ? <><Loader2 size={15} className="animate-spin" /> Saving…</> : <><Save size={15} /> {editingRecord ? 'Save Changes' : 'Create Record'}</>}
           </button>
         </div>
       </div>
@@ -234,21 +254,14 @@ const KhidmatForm = () => {
   )
 }
 
-// ─── Helpers ─────────────────────────────────
-
 const Field = ({ label, icon, error, required, children }) => (
   <div>
     <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-      <span className="text-slate-400">{icon}</span>
-      {label}
+      <span className="text-slate-400">{icon}</span>{label}
       {required && <span className="text-red-400">*</span>}
     </label>
     {children}
-    {error && (
-      <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
-        <AlertCircle size={11} /> {error}
-      </p>
-    )}
+    {error && <p className="mt-1 text-xs text-red-500 flex items-center gap-1"><AlertCircle size={11} /> {error}</p>}
   </div>
 )
 

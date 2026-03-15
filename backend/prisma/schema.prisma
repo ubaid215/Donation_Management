@@ -1,5 +1,10 @@
 // ============================================================
 // schema.prisma — Donation Management System
+// Updated: KhidmatRecord installment tracking
+//   - amount        = total pledged (unchanged)
+//   - receivedAmount = running total collected (new)
+//   - KhidmatPayment = individual installment log (new model)
+//   - New audit actions: KHIDMAT_PAYMENT_ADDED
 // ============================================================
 
 generator client {
@@ -29,11 +34,11 @@ enum PaymentMethod {
   CHEQUE
 }
 
-
+// Status of a KhidmatRecord — drives WhatsApp message template
 enum KhidmatStatus {
-  COMPLETED    // Service fully completed
-  PARTIAL      // Service partially completed / half done
-  RECORD_ONLY  // Just recording — no service yet
+  COMPLETED    // Fully paid / service complete
+  PARTIAL      // Partially paid — receivedAmount < amount
+  RECORD_ONLY  // Just recording — no payment yet
 }
 
 enum AuditAction {
@@ -74,6 +79,7 @@ enum AuditAction {
   KHIDMAT_WHATSAPP_SENT
   KHIDMAT_WHATSAPP_FAILED
   KHIDMAT_WHATSAPP_SKIPPED
+  KHIDMAT_PAYMENT_ADDED     // New installment recorded
 }
 
 // ─────────────────────────────────────────────
@@ -96,11 +102,10 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  // Relations
-  donationsCreated Donation[]      @relation("OperatorDonations")
-  donationsDeleted Donation[]      @relation("DeletedDonations")
-  khidmatCreated   KhidmatRecord[] @relation("KhidmatOperator")
-  khidmatDeleted   KhidmatRecord[] @relation("KhidmatDeletedBy")
+  donationsCreated Donation[]        @relation("OperatorDonations")
+  donationsDeleted Donation[]        @relation("DeletedDonations")
+  khidmatCreated   KhidmatRecord[]   @relation("KhidmatOperator")
+  khidmatDeleted   KhidmatRecord[]   @relation("KhidmatDeletedBy")
   auditLogs        AuditLog[]
 
   @@map("users")
@@ -117,14 +122,14 @@ model Donation {
   notes         String?
   date          DateTime      @default(now())
 
-  emailSent   Boolean   @default(false)
-  emailSentAt DateTime?
-  emailError  String?
+  emailSent     Boolean   @default(false)
+  emailSentAt   DateTime?
+  emailError    String?
   receiptNumber String?
 
-  whatsappSent      Boolean  @default(false)
+  whatsappSent      Boolean   @default(false)
   whatsappSentAt    DateTime?
-  whatsappMessageId String?  @unique
+  whatsappMessageId String?   @unique
   whatsappError     String?
 
   whatsappStatus          String?   @default("PENDING")
@@ -139,10 +144,10 @@ model Donation {
   deletedBy  String?
 
   operator      User              @relation("OperatorDonations", fields: [operatorId], references: [id])
-  deletedByUser User?             @relation("DeletedDonations", fields: [deletedBy], references: [id])
+  deletedByUser User?             @relation("DeletedDonations",  fields: [deletedBy],  references: [id])
   category      DonationCategory? @relation(fields: [categoryId], references: [id])
 
-  isDeleted      Boolean  @default(false)
+  isDeleted      Boolean   @default(false)
   deletedAt      DateTime?
   deletionReason String?
 
@@ -166,37 +171,41 @@ model DonationCategory {
   updatedAt   DateTime @updatedAt
 
   donations      Donation[]
-  khidmatRecords KhidmatRecord[] // ← KhidmatRecord also links to a category
+  khidmatRecords KhidmatRecord[]
 
   @@map("donation_categories")
 }
 
 // ─────────────────────────────────────────────
-// NEW: KhidmatRecord
-// Records a service (khidmat) rendered to a person.
-// Supports WhatsApp notification based on status.
+// KhidmatRecord
 // ─────────────────────────────────────────────
 model KhidmatRecord {
-  id   String @id @default(uuid())
+  id String @id @default(uuid())
 
-  // ── Person details ────────────────────────
-  name        String
-  phone       String
-  address     String?           // optional
+  // ── Person ────────────────────────────────
+  name    String
+  phone   String
+  address String?
 
-  // ── Service details ───────────────────────
-  amount      Decimal           @db.Decimal(10, 2)
-  categoryId  String
-  status      KhidmatStatus     @default(RECORD_ONLY)
-  notes       String?
+  // ── Financials ────────────────────────────
+  // amount         = total pledged / committed
+  // receivedAmount = sum of all installments collected so far
+  // remainingAmount is always computed: amount - receivedAmount
+  amount         Decimal @db.Decimal(10, 2)
+  receivedAmount Decimal @db.Decimal(10, 2) @default(0)
 
-  // ── WhatsApp tracking ─────────────────────
-  whatsappSent              Boolean   @default(false)
-  whatsappSentAt            DateTime?
-  whatsappMessageId         String?   @unique
-  whatsappError             String?
-  whatsappStatus            String?   @default("PENDING")  // PENDING | SENT | DELIVERED | READ | FAILED
-  whatsappStatusUpdatedAt   DateTime?
+  // ── Service ───────────────────────────────
+  categoryId String
+  status     KhidmatStatus @default(RECORD_ONLY)
+  notes      String?
+
+  // ── WhatsApp ──────────────────────────────
+  whatsappSent            Boolean   @default(false)
+  whatsappSentAt          DateTime?
+  whatsappMessageId       String?   @unique
+  whatsappError           String?
+  whatsappStatus          String?   @default("PENDING")
+  whatsappStatusUpdatedAt DateTime?
 
   // ── Soft-delete ───────────────────────────
   isDeleted      Boolean   @default(false)
@@ -210,16 +219,39 @@ model KhidmatRecord {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  // ── Relations ────────────────────────────
-  operator      User             @relation("KhidmatOperator",   fields: [operatorId], references: [id])
-  deletedByUser User?            @relation("KhidmatDeletedBy",  fields: [deletedBy],  references: [id])
-  category      DonationCategory @relation(fields: [categoryId], references: [id])
+  // ── Relations ─────────────────────────────
+  operator      User              @relation("KhidmatOperator",  fields: [operatorId], references: [id])
+  deletedByUser User?             @relation("KhidmatDeletedBy", fields: [deletedBy],  references: [id])
+  category      DonationCategory  @relation(fields: [categoryId], references: [id])
+  payments      KhidmatPayment[]  // installment history
 
   @@map("khidmat_records")
   @@index([operatorId])
   @@index([categoryId])
   @@index([status])
   @@index([deletedBy])
+}
+
+// ─────────────────────────────────────────────
+// KhidmatPayment
+// Each row = one installment added to a KhidmatRecord.
+// receivedAmount on the parent is always the SUM of these.
+// ─────────────────────────────────────────────
+model KhidmatPayment {
+  id       String  @id @default(uuid())
+  recordId String
+
+  amount  Decimal  @db.Decimal(10, 2)   // this installment amount
+  notes   String?                        // optional note e.g. "received via bank"
+  paidAt  DateTime @default(now())       // when this payment was received
+
+  createdAt DateTime @default(now())
+
+  record KhidmatRecord @relation(fields: [recordId], references: [id])
+
+  @@map("khidmat_payments")
+  @@index([recordId])
+  @@index([paidAt])
 }
 
 model AuditLog {

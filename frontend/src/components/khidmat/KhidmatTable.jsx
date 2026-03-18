@@ -142,19 +142,51 @@ const StatusDropdown = ({ recordId, currentStatus }) => {
 const WhatsAppButton = ({ record }) => {
   const { sendWhatsApp, sendingWhatsApp } = useKhidmat()
   const isSending = sendingWhatsApp[record.id]
+  const [showTooltip, setShowTooltip] = useState(false)
+
+  const recordDate = new Date(record.date || record.createdAt).toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric'
+  })
+
   return (
-    <button onClick={() => sendWhatsApp(record.id)} disabled={isSending}
-      title={record.whatsappSent ? 'Resend WhatsApp' : 'Send WhatsApp'}
-      className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all
-        ${isSending ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-          : record.whatsappSent
-            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
-            : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200'}`}>
-      {isSending ? <RefreshCw size={14} className="animate-spin" /> : <MessageCircle size={14} strokeWidth={2} />}
-      {record.whatsappSent && !isSending && (
-        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
+    <div className="relative inline-flex"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}>
+
+      <button onClick={() => sendWhatsApp(record.id)} disabled={isSending}
+        className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all
+          ${isSending ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+            : record.whatsappSent
+              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
+              : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200'}`}>
+        {isSending
+          ? <RefreshCw size={14} className="animate-spin" />
+          : <MessageCircle size={14} strokeWidth={2} />}
+        {record.whatsappSent && !isSending && (
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
+        )}
+      </button>
+
+      {/* Tooltip */}
+      {showTooltip && !isSending && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none">
+          <div className="bg-slate-800 text-white text-[11px] rounded-lg px-3 py-2 w-52 leading-relaxed shadow-xl">
+            <p className="font-semibold mb-0.5">
+              {record.whatsappSent ? '🔁 Resend WhatsApp' : '📲 Send WhatsApp'}
+            </p>
+            <p className="text-slate-300">
+              Message will use record date:{' '}
+              <span className="text-white font-medium">{recordDate}</span>
+            </p>
+            <p className="text-slate-400 mt-1">
+              To use today's date, edit the record first.
+            </p>
+          </div>
+          {/* Arrow */}
+          <div className="w-2.5 h-2.5 bg-slate-800 rotate-45 mx-auto -mt-1.5 rounded-sm" />
+        </div>
       )}
-    </button>
+    </div>
   )
 }
 

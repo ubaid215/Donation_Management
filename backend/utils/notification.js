@@ -1,3 +1,4 @@
+// utils/recordNotification.js
 import { Resend } from 'resend';
 import axios from 'axios';
 

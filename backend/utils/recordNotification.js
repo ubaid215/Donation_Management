@@ -21,7 +21,7 @@ const sendWhatsAppMessage = async (toPhone, templateName, components = []) => {
       messaging_product: 'whatsapp',
       to: toPhone,
       type: 'template',
-      template: { name: templateName, language: { code: 'en' }, components }
+      template: { name: templateName, language: { code: 'en_us' }, components }
     })
   })
 
@@ -53,17 +53,21 @@ const buildTemplatePayload = (record, categoryName) => {
   switch (record.status) {
 
     case 'COMPLETED':
-      return {
-        templateName: 'khidmat_completed',
-        components: [{
-          type: 'body',
-          parameters: [
-            { type: 'text', text: record.name },
-            { type: 'text', text: categoryName },
-            { type: 'text', text: `Rs ${fmt(totalAmount)}` }
-          ]
-        }]
-      }
+  return {
+    templateName: 'khidmat_completed',
+    components: [{
+      type: 'body',
+      parameters: [
+        { type: 'text', text: record.name },                          // {{1}} name
+        { type: 'text', text: `Rs ${fmt(totalAmount)}` },            // {{2}} payment amount
+        { type: 'text', text: categoryName },                         // {{3}} purpose
+        { type: 'text', text: new Date(record.date).toLocaleDateString('en-PK', {
+            day: '2-digit', month: 'long', year: 'numeric'
+          })
+        },                                                            // {{4}} date
+      ]
+    }]
+  }
 
     case 'PARTIAL':
       // Template body example:

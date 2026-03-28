@@ -1,5 +1,6 @@
 // ============================================================
 // pages/Khidmat.jsx — tabbed: Records | Analytics
+// Now includes BulkReminderBar for one-click mass reminders
 // ============================================================
 
 import React, { useEffect, useState } from 'react'
@@ -9,7 +10,7 @@ import KhidmatFilter    from '../components/khidmat/KhidmatFilter'
 import KhidmatTable     from '../components/khidmat/KhidmatTable'
 import KhidmatForm      from '../components/khidmat/KhidmatForm'
 import KhidmatAnalytics from '../components/khidmat/KhidmatAnalytics'
-import AddPaymentModel  from '../components/khidmat/AddPaymentModel'
+import BulkReminderBar  from '../components/khidmat/BulkReminderBar'
 
 const TABS = [
   { id: 'records',   label: 'Records',   icon: List       },
@@ -73,6 +74,9 @@ const KhidmatPageInner = () => {
         {/* Content */}
         {activeTab === 'records' ? (
           <>
+            {/* ── Bulk reminder bar — lives above filters ── */}
+            <BulkReminderBar />
+
             <KhidmatFilter />
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <KhidmatTable />
@@ -84,7 +88,7 @@ const KhidmatPageInner = () => {
       </div>
 
       <KhidmatForm />
-      <AddPaymentModel />
+      {/* AddPaymentModal removed — payment is now inline in KhidmatTable expanded rows */}
     </div>
   )
 }

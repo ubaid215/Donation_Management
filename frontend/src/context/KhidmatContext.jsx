@@ -9,7 +9,8 @@ import toast from 'react-hot-toast'
 import {
   getKhidmatRecords, createKhidmatRecord, updateKhidmatRecord,
   updateKhidmatStatus, deleteKhidmatRecord, restoreKhidmatRecord,
-  sendKhidmatWhatsApp, getKhidmatStats, getKhidmatAnalytics,
+  sendKhidmatWhatsApp, sendBulkReminders, previewBulkReminders,
+  getKhidmatStats, getKhidmatAnalytics,
   addKhidmatPayment, getKhidmatPayments,
   downloadKhidmatReport, downloadKhidmatCategoryReport, downloadKhidmatReceipt,
 } from '../services/khidmat.service'
@@ -36,6 +37,10 @@ export const KhidmatProvider = ({ children }) => {
   // ── Analytics ─────────────────────────────────
   const [analytics,        setAnalytics]        = useState(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
+
+  // ── Bulk Reminders ────────────────────────────
+  const [sendingBulk, setSendingBulk] = useState(false)
+  const [bulkPreview, setBulkPreview] = useState(null)
 
   // ── Payment modal ─────────────────────────────
   const [paymentModalRecord, setPaymentModalRecord] = useState(null) // record to add payment to
@@ -94,6 +99,98 @@ export const KhidmatProvider = ({ children }) => {
       toast.error('Failed to load analytics')
     } finally { setAnalyticsLoading(false) }
   }, [])
+
+  // ─────────────────────────────────────────────
+  // BULK REMINDER PREVIEW
+  // ─────────────────────────────────────────────
+  const fetchBulkPreview = useCallback(async (previewFilters = {}) => {
+    try {
+      const params = {
+        statuses: previewFilters.statuses?.join(',') || 'PARTIAL,RECORD_ONLY',
+        ...(previewFilters.categoryId && { categoryId: previewFilters.categoryId }),
+        ...(previewFilters.startDate && { startDate: previewFilters.startDate }),
+        ...(previewFilters.endDate && { endDate: previewFilters.endDate }),
+      }
+      const data = await previewBulkReminders(params)
+      setBulkPreview(data)
+      return data
+    } catch (err) {
+      toast.error('Failed to preview reminders')
+      return null
+    }
+  }, [])
+
+// ─────────────────────────────────────────────
+// SEND BULK REMINDERS (Updated with better error handling)
+// ─────────────────────────────────────────────
+const sendBulkReminderMessages = useCallback(async (options = {}) => {
+  setSendingBulk(true)
+  const toastId = toast.loading('Sending bulk reminders...')
+  try {
+    const payload = {
+      statuses: options.statuses || ['PARTIAL', 'RECORD_ONLY'],
+      filters: {
+        ...(options.categoryId && { categoryId: options.categoryId }),
+        ...(options.startDate && { startDate: options.startDate }),
+        ...(options.endDate && { endDate: options.endDate }),
+      }
+    }
+    const result = await sendBulkReminders(payload)
+    
+    // Check if all failed due to template error
+    const allFailed = result.sent === 0 && result.failed > 0
+    const hasTemplateError = result.results?.some(r => 
+      r.error?.toLowerCase().includes('template') || 
+      r.error?.toLowerCase().includes('130472')
+    )
+    
+    if (allFailed && hasTemplateError) {
+      toast.error(
+        'WhatsApp templates not configured. Please configure templates in Meta Business Manager first.',
+        { id: toastId, duration: 6000 }
+      )
+    } else if (result.sent > 0 && result.failed > 0) {
+      toast.success(
+        `⚠️ Partial success: ${result.sent} sent, ${result.failed} failed. Check details below.`,
+        { id: toastId, duration: 5000 }
+      )
+    } else if (result.sent > 0) {
+      toast.success(
+        `✅ All reminders sent! ${result.sent} messages delivered.`,
+        { id: toastId, duration: 4000 }
+      )
+    } else if (result.failed > 0) {
+      toast.error(
+        `❌ All ${result.failed} reminders failed. ${hasTemplateError ? 'Template not configured.' : 'Check error details below.'}`,
+        { id: toastId, duration: 5000 }
+      )
+    }
+    
+    // Refresh records to update WhatsApp statuses
+    await fetchRecords()
+    
+    return result
+  } catch (err) {
+    // Check if it's a template error from the API response
+    const errorMsg = err.message || ''
+    const isTemplateError = 
+      errorMsg.toLowerCase().includes('template') ||
+      errorMsg.toLowerCase().includes('130472') ||
+      errorMsg.toLowerCase().includes('not found')
+    
+    if (isTemplateError) {
+      toast.error(
+        'WhatsApp template not configured. Please configure it in Meta Business Manager before sending bulk reminders.',
+        { id: toastId, duration: 6000 }
+      )
+    } else {
+      toast.error(errorMsg || 'Failed to send bulk reminders', { id: toastId })
+    }
+    throw err
+  } finally {
+    setSendingBulk(false)
+  }
+}, [fetchRecords])
 
   // ─────────────────────────────────────────────
   // CREATE
@@ -277,11 +374,13 @@ export const KhidmatProvider = ({ children }) => {
     paymentModalRecord, setPaymentModalRecord,
     paymentHistory,
     sendingWhatsApp, updatingStatus, addingPayment,
+    sendingBulk, bulkPreview,
 
     fetchRecords, fetchStats, fetchAnalytics,
     createRecord, updateRecord, quickUpdateStatus, deleteRecord,
     addPayment, fetchPaymentHistory,
     sendWhatsApp,
+    fetchBulkPreview, sendBulkReminderMessages,
 
     applyFilters, resetFilters, goToPage,
     openCreateForm, openEditForm, closeForm,

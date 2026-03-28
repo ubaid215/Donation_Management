@@ -163,3 +163,65 @@ export const sendWhatsappValidator = [
   param('id').isUUID().withMessage('Invalid record ID'),
   handleValidation
 ]
+
+
+// ─────────────────────────────────────────────
+// Bulk SEND WHATSAPP
+// ─────────────────────────────────────────────
+
+// ============================================================
+// Add to features/khidmatRecord/khidmat.validator.js
+// ============================================================
+
+// Add these validators to the existing file
+
+export const bulkReminderValidator = [
+  body('statuses')
+    .optional()
+    .isArray().withMessage('statuses must be an array')
+    .custom((statuses) => {
+      if (!statuses) return true
+      const validStatuses = ['COMPLETED', 'PARTIAL', 'RECORD_ONLY']
+      const allValid = statuses.every(s => validStatuses.includes(s))
+      if (!allValid) throw new Error('Invalid status in statuses array')
+      return true
+    }),
+  
+  body('filters')
+    .optional()
+    .isObject().withMessage('filters must be an object'),
+  
+  body('filters.categoryId')
+    .optional()
+    .isUUID().withMessage('Invalid category ID'),
+  
+  body('filters.startDate')
+    .optional()
+    .isISO8601().withMessage('startDate must be a valid ISO 8601 date'),
+  
+  body('filters.endDate')
+    .optional()
+    .isISO8601().withMessage('endDate must be a valid ISO 8601 date'),
+  
+  handleValidation
+]
+
+export const bulkReminderPreviewValidator = [
+  query('statuses')
+    .optional()
+    .isString().withMessage('statuses must be a comma-separated string'),
+  
+  query('categoryId')
+    .optional()
+    .isUUID().withMessage('Invalid category ID'),
+  
+  query('startDate')
+    .optional()
+    .isISO8601().withMessage('startDate must be a valid ISO 8601 date'),
+  
+  query('endDate')
+    .optional()
+    .isISO8601().withMessage('endDate must be a valid ISO 8601 date'),
+  
+  handleValidation
+]

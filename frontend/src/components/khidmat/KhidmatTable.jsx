@@ -1,7 +1,7 @@
 // ============================================================
-// components/khidmat/KhidmatTable.jsx
-// Now shows pledged/received progress and Add Payment button
-// Dropdowns rendered via ReactDOM.createPortal (overflow fix)
+// components/khidmat/KhidmatTable.jsx  — UPGRADED
+// Expandable rows with inline quick-pay form
+// No need to open a separate modal for adding payments
 // ============================================================
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
@@ -10,7 +10,10 @@ import {
   MessageCircle, Pencil, Trash2, FileDown,
   ChevronLeft, ChevronRight, CheckCircle2,
   AlertCircle, FileText, MoreVertical,
-  RefreshCw, WifiOff, ChevronDown, PlusCircle
+  RefreshCw, WifiOff, ChevronDown, PlusCircle,
+  ChevronRight as ExpandIcon, Loader2, Check,
+  DollarSign, Calendar, StickyNote, History,
+  ArrowRight
 } from 'lucide-react'
 import { useKhidmat, STATUS_LABELS, STATUS_COLORS } from '../../context/KhidmatContext'
 import { useDonations } from '../../context/DonationContext'
@@ -47,10 +50,10 @@ const STATUS_OPTS = [
   { value: 'RECORD_ONLY', label: 'Record Only', icon: FileText,     colors: STATUS_COLORS.RECORD_ONLY },
 ]
 
-// ── Skeleton row ─────────────────────────────
+// ── Skeleton row ──────────────────────────────
 const SkeletonRow = () => (
   <tr className="border-b border-slate-100 animate-pulse">
-    {[40, 130, 90, 90, 130, 90, 60, 60].map((w, i) => (
+    {[16, 40, 130, 90, 130, 90, 60, 60].map((w, i) => (
       <td key={i} className="px-4 py-3.5">
         <div className="h-3.5 rounded-full bg-slate-200" style={{ width: w }} />
       </td>
@@ -105,7 +108,7 @@ const StatusDropdown = ({ recordId, currentStatus }) => {
 
   return (
     <div className="relative inline-block">
-      <button ref={triggerRef} onClick={toggle} disabled={isUpdating} title="Click to change status"
+      <button ref={triggerRef} onClick={toggle} disabled={isUpdating}
         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all
           ${c.bg} ${c.text} ${c.border}
           ${isUpdating ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-sm cursor-pointer'}`}>
@@ -124,8 +127,7 @@ const StatusDropdown = ({ recordId, currentStatus }) => {
                   onClick={() => { if (!isCurrent) quickUpdateStatus(recordId, opt.value); setOpen(false) }}
                   className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors
                     ${isCurrent ? `${opt.colors.bg} ${opt.colors.text} cursor-default` : 'hover:bg-slate-50 text-slate-600'}`}>
-                  <Icon size={13} />
-                  {opt.label}
+                  <Icon size={13} />{opt.label}
                   {isCurrent && <span className="ml-auto text-[10px] opacity-60">Current</span>}
                 </button>
               )
@@ -142,57 +144,28 @@ const StatusDropdown = ({ recordId, currentStatus }) => {
 const WhatsAppButton = ({ record }) => {
   const { sendWhatsApp, sendingWhatsApp } = useKhidmat()
   const isSending = sendingWhatsApp[record.id]
-  const [showTooltip, setShowTooltip] = useState(false)
-
-  const recordDate = new Date(record.date || record.createdAt).toLocaleDateString('en-GB', {
-    day: '2-digit', month: 'short', year: 'numeric'
-  })
 
   return (
-    <div className="relative inline-flex"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}>
-
-      <button onClick={() => sendWhatsApp(record.id)} disabled={isSending}
-        className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all
-          ${isSending ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            : record.whatsappSent
-              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
-              : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200'}`}>
-        {isSending
-          ? <RefreshCw size={14} className="animate-spin" />
-          : <MessageCircle size={14} strokeWidth={2} />}
-        {record.whatsappSent && !isSending && (
-          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
-        )}
-      </button>
-
-      {/* Tooltip */}
-      {showTooltip && !isSending && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none">
-          <div className="bg-slate-800 text-white text-[11px] rounded-lg px-3 py-2 w-52 leading-relaxed shadow-xl">
-            <p className="font-semibold mb-0.5">
-              {record.whatsappSent ? '🔁 Resend WhatsApp' : '📲 Send WhatsApp'}
-            </p>
-            <p className="text-slate-300">
-              Message will use record date:{' '}
-              <span className="text-white font-medium">{recordDate}</span>
-            </p>
-            <p className="text-slate-400 mt-1">
-              To use today's date, edit the record first.
-            </p>
-          </div>
-          {/* Arrow */}
-          <div className="w-2.5 h-2.5 bg-slate-800 rotate-45 mx-auto -mt-1.5 rounded-sm" />
-        </div>
+    <button onClick={() => sendWhatsApp(record.id)} disabled={isSending}
+      title={record.whatsappSent ? 'Resend WhatsApp' : 'Send WhatsApp'}
+      className={`relative flex items-center justify-center w-8 h-8 rounded-lg transition-all
+        ${isSending ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+          : record.whatsappSent
+            ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200'
+            : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200'}`}>
+      {isSending
+        ? <RefreshCw size={14} className="animate-spin" />
+        : <MessageCircle size={14} strokeWidth={2} />}
+      {record.whatsappSent && !isSending && (
+        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
       )}
-    </div>
+    </button>
   )
 }
 
 // ── Row actions (portalled) ───────────────────
 const RowActions = ({ record }) => {
-  const { openEditForm, deleteRecord, downloadReceipt, setPaymentModalRecord } = useKhidmat()
+  const { openEditForm, deleteRecord, downloadReceipt } = useKhidmat()
   const { triggerRef, open, setOpen, toggle } = usePortalDropdown()
   const [confirming, setConfirming] = useState(false)
   const [menuStyle,  setMenuStyle]  = useState({})
@@ -204,7 +177,6 @@ const RowActions = ({ record }) => {
   }, [triggerRef])
 
   const handleToggle = () => { calcStyle(); toggle(); setConfirming(false) }
-
   const handleDelete = async () => {
     if (!confirming) { setConfirming(true); return }
     setOpen(false); setConfirming(false)
@@ -224,16 +196,8 @@ const RowActions = ({ record }) => {
           <div style={menuStyle} className="bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden min-w-[170px]">
             <button onClick={() => { openEditForm(record); setOpen(false) }}
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-              <Pencil size={14} /> Edit
+              <Pencil size={14} /> Edit Record
             </button>
-            {/* Add payment — only show if not fully paid */}
-            {record.remainingAmount > 0 && (
-              <button
-                onClick={() => { setPaymentModalRecord(record); setOpen(false) }}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-emerald-600 hover:bg-emerald-50 transition-colors font-medium">
-                <PlusCircle size={14} /> Add Payment
-              </button>
-            )}
             <button onClick={() => { downloadReceipt(record.id, record.name); setOpen(false) }}
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
               <FileDown size={14} /> Download Receipt
@@ -242,14 +206,238 @@ const RowActions = ({ record }) => {
             <button onClick={handleDelete}
               className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm transition-colors
                 ${confirming ? 'text-red-600 bg-red-50 font-semibold' : 'text-red-500 hover:bg-red-50'}`}>
-              <Trash2 size={14} />
-              {confirming ? 'Confirm delete?' : 'Delete'}
+              <Trash2 size={14} />{confirming ? 'Confirm delete?' : 'Delete'}
             </button>
           </div>
         </>,
         document.body
       )}
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────
+// INLINE QUICK-PAY FORM (shown in expanded row)
+// ─────────────────────────────────────────────
+const QuickPayForm = ({ record, onSuccess, onCancel }) => {
+  const { addPayment } = useKhidmat()
+  const [amount,   setAmount]   = useState('')
+  const [notes,    setNotes]    = useState('')
+  const [date,     setDate]     = useState(new Date().toISOString().split('T')[0])
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState('')
+  const [success,  setSuccess]  = useState(false)
+  const amountRef = useRef(null)
+
+  useEffect(() => { amountRef.current?.focus() }, [])
+
+  const remaining = record.remainingAmount ?? (record.amount - record.receivedAmount)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const val = parseFloat(amount)
+    if (!val || val <= 0) { setError('Enter a valid amount'); return }
+    if (val > remaining) { setError(`Cannot exceed remaining Rs ${remaining.toLocaleString('en-IN')}`); return }
+
+    setSaving(true); setError('')
+    try {
+      await addPayment(record.id, { amount: val, notes, paidAt: date })
+      setSuccess(true)
+      setTimeout(() => onSuccess?.(), 900)
+    } catch (err) {
+      setError(err.message || 'Payment failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const quickAmounts = [
+    remaining,
+    Math.round(remaining * 0.5),
+    Math.round(remaining * 0.25),
+  ].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).slice(0, 3)
+
+  if (success) return (
+    <div className="flex items-center justify-center gap-2 py-4 text-emerald-600 font-semibold text-sm">
+      <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+        <Check size={14} />
+      </div>
+      Payment recorded!
+    </div>
+  )
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Add Payment</p>
+
+      {/* Quick amount chips */}
+      {quickAmounts.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          <span className="text-[10px] text-slate-400 self-center">Quick:</span>
+          {quickAmounts.map((v, i) => (
+            <button key={i} type="button" onClick={() => setAmount(v.toString())}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all
+                ${parseFloat(amount) === v
+                  ? 'bg-blue-700 text-white border-blue-700'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700'}`}>
+              {i === 0 ? 'Full' : `${Math.round((v / record.amount) * 100)}%`} — Rs {v.toLocaleString('en-IN')}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Amount + Date */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+            <DollarSign size={10} /> Amount (Rs)
+          </label>
+          <input ref={amountRef} type="number" min="1" max={remaining} step="0.01"
+            value={amount} onChange={e => { setAmount(e.target.value); setError('') }}
+            placeholder={`Max Rs ${remaining.toLocaleString('en-IN')}`}
+            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800
+                       focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent
+                       placeholder-slate-300 bg-white transition-all" />
+        </div>
+        <div>
+          <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+            <Calendar size={10} /> Date
+          </label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700
+                       focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent bg-white" />
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
+          <StickyNote size={10} /> Notes (optional)
+        </label>
+        <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
+          placeholder="e.g. Cash received at office"
+          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800
+                     focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent
+                     placeholder-slate-300 bg-white transition-all" />
+      </div>
+
+      {error && (
+        <p className="text-xs text-red-500 flex items-center gap-1">
+          <AlertCircle size={11} /> {error}
+        </p>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 pt-1">
+        <button type="button" onClick={onCancel}
+          className="px-3 py-2 rounded-xl border border-slate-200 text-slate-500 text-xs font-medium hover:bg-slate-50 transition-colors">
+          Cancel
+        </button>
+        <button type="submit" disabled={saving}
+          className="flex-1 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 disabled:opacity-60
+                     text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-sm">
+          {saving ? <><Loader2 size={12} className="animate-spin" />Saving…</> : <><Check size={12} />Record Payment</>}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ─────────────────────────────────────────────
+// EXPANDED ROW PANEL
+// Shows payment history + quick-pay form
+// ─────────────────────────────────────────────
+const ExpandedRow = ({ record, colSpan, onPaymentAdded }) => {
+  const { fetchRecords } = useKhidmat()
+  const [payments,  setPayments]  = useState(null)
+  const [loading,   setLoading]   = useState(true)
+  const [showForm,  setShowForm]  = useState(record.remainingAmount > 0)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res  = await fetch(`/api/khidmat/${record.id}/payments`)
+        const data = await res.json()
+        setPayments(data.payments || [])
+      } catch {
+        setPayments([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [record.id])
+
+  const handlePaymentSuccess = () => {
+    setShowForm(false)
+    fetchRecords()
+    onPaymentAdded?.()
+  }
+
+  return (
+    <tr className="bg-slate-50/80 border-b border-slate-200">
+      <td colSpan={colSpan} className="px-4 py-0">
+        <div className="py-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+
+          {/* LEFT: Payment history */}
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 mb-3">
+              <History size={12} /> Payment History
+            </p>
+            {loading ? (
+              <div className="space-y-2">
+                {[1,2].map(i => <div key={i} className="h-8 rounded-lg bg-slate-200 animate-pulse" />)}
+              </div>
+            ) : payments?.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">No payments recorded yet.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {payments.map((p, i) => (
+                  <div key={p.id || i}
+                    className="flex items-center justify-between bg-white rounded-xl border border-slate-100 px-3 py-2">
+                    <div>
+                      <span className="text-sm font-semibold text-slate-800">
+                        Rs {parseFloat(p.amount).toLocaleString('en-IN')}
+                      </span>
+                      {p.notes && <span className="text-xs text-slate-400 ml-2">— {p.notes}</span>}
+                    </div>
+                    <span className="text-[10px] text-slate-400 whitespace-nowrap ml-2">
+                      {new Date(p.paidAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Quick pay form or completed badge */}
+          <div>
+            {record.remainingAmount > 0 ? (
+              showForm ? (
+                <QuickPayForm
+                  record={record}
+                  onSuccess={handlePaymentSuccess}
+                  onCancel={() => setShowForm(false)}
+                />
+              ) : (
+                <button onClick={() => setShowForm(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-emerald-200 text-emerald-600 text-sm font-semibold hover:bg-emerald-50 transition-all">
+                  <PlusCircle size={16} /> Add Another Payment
+                </button>
+              )
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-2 py-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle2 size={20} className="text-emerald-600" />
+                </div>
+                <p className="text-sm font-semibold text-emerald-700">Fully paid!</p>
+                <p className="text-xs text-slate-400">Rs {record.amount?.toLocaleString('en-IN')} received</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </td>
+    </tr>
   )
 }
 
@@ -293,13 +481,25 @@ const PageBtn = ({ label, icon, active, onClick, disabled }) => (
 // MAIN TABLE
 // ─────────────────────────────────────────────
 const KhidmatTable = () => {
-  const { records, loading, error, fetchRecords, setPaymentModalRecord } = useKhidmat()
+  const { records, loading, error, fetchRecords } = useKhidmat()
+  const [expandedRows, setExpandedRows] = useState(new Set())
+
+  const toggleRow = (id) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const COLS = ['', 'Date', 'Name', 'Category', 'Amount / Progress', 'Status', 'WhatsApp', 'Actions']
 
   if (!loading && error) return (
     <div className="flex flex-col items-center justify-center py-16 text-center px-4">
       <WifiOff size={36} className="text-slate-300 mb-3" />
       <p className="text-slate-500 text-sm font-medium mb-4">Failed to load records</p>
-      <button onClick={() => fetchRecords()} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-700 text-white text-sm font-medium hover:bg-blue-800 transition-colors">
+      <button onClick={() => fetchRecords()}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-700 text-white text-sm font-medium hover:bg-blue-800 transition-colors">
         <RefreshCw size={14} /> Retry
       </button>
     </div>
@@ -320,38 +520,59 @@ const KhidmatTable = () => {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/80">
-              {['Date', 'Name', 'Phone', 'Category', 'Amount / Progress', 'Status', 'WhatsApp', 'Actions'].map(h => (
+              {COLS.map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {loading ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
-              : records.map(record => (
-                <tr key={record.id} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
-                  <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
-                    {new Date(record.date || record.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="font-semibold text-slate-800 text-sm leading-tight">{record.name}</div>
-                    {record.address && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[140px]">{record.address}</div>}
-                  </td>
-                  <td className="px-4 py-3.5 text-sm text-slate-600 whitespace-nowrap">{record.phone}</td>
-                  <td className="px-4 py-3.5">
-                    <CategoryPill categoryId={record.categoryId} categoryFromRecord={record.category} />
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <AmountProgress
-                      amount={record.amount}
-                      receivedAmount={record.receivedAmount}
-                      remainingAmount={record.remainingAmount}
-                    />
-                  </td>
-                  <td className="px-4 py-3.5"><StatusDropdown recordId={record.id} currentStatus={record.status} /></td>
-                  <td className="px-4 py-3.5"><WhatsAppButton record={record} /></td>
-                  <td className="px-4 py-3.5"><RowActions record={record} /></td>
-                </tr>
-              ))
+            {loading
+              ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
+              : records.map(record => {
+                  const isExpanded = expandedRows.has(record.id)
+                  return (
+                    <React.Fragment key={record.id}>
+                      <tr className={`border-b border-slate-100 transition-colors ${isExpanded ? 'bg-blue-50/30' : 'hover:bg-slate-50/60'}`}>
+
+                        {/* Expand toggle */}
+                        <td className="pl-3 pr-1 py-3.5 w-8">
+                          <button onClick={() => toggleRow(record.id)}
+                            className={`w-6 h-6 rounded-md flex items-center justify-center transition-all
+                              ${isExpanded ? 'bg-blue-100 text-blue-600 rotate-90' : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'}`}>
+                            <ExpandIcon size={13} />
+                          </button>
+                        </td>
+
+                        <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                          {new Date(record.date || record.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <div className="font-semibold text-slate-800 text-sm leading-tight">{record.name}</div>
+                          {record.address && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[140px]">{record.address}</div>}
+                          <div className="text-xs text-slate-400 mt-0.5">{record.phone}</div>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <CategoryPill categoryId={record.categoryId} categoryFromRecord={record.category} />
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <AmountProgress amount={record.amount} receivedAmount={record.receivedAmount} remainingAmount={record.remainingAmount} />
+                        </td>
+                        <td className="px-4 py-3.5"><StatusDropdown recordId={record.id} currentStatus={record.status} /></td>
+                        <td className="px-4 py-3.5"><WhatsAppButton record={record} /></td>
+                        <td className="px-4 py-3.5"><RowActions record={record} /></td>
+                      </tr>
+
+                      {/* Expanded panel */}
+                      {isExpanded && (
+                        <ExpandedRow
+                          record={record}
+                          colSpan={COLS.length}
+                          onPaymentAdded={() => toggleRow(record.id)}
+                        />
+                      )}
+                    </React.Fragment>
+                  )
+                })
             }
           </tbody>
         </table>
@@ -359,42 +580,57 @@ const KhidmatTable = () => {
 
       {/* Mobile cards */}
       <div className="md:hidden space-y-3 p-3">
-        {loading ? Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 animate-pulse">
-            <div className="flex justify-between"><div className="h-4 w-32 rounded-full bg-slate-200" /><div className="h-4 w-16 rounded-full bg-slate-200" /></div>
-            <div className="h-3 w-24 rounded-full bg-slate-200" />
-            <div className="h-2 w-full rounded-full bg-slate-200" />
-          </div>
-        )) : records.map(record => (
-          <div key={record.id} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-semibold text-slate-800 text-sm">{record.name}</p>
-                {record.address && <p className="text-xs text-slate-400 mt-0.5">{record.address}</p>}
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 animate-pulse">
+                <div className="flex justify-between"><div className="h-4 w-32 rounded-full bg-slate-200" /><div className="h-4 w-16 rounded-full bg-slate-200" /></div>
+                <div className="h-3 w-24 rounded-full bg-slate-200" />
+                <div className="h-2 w-full rounded-full bg-slate-200" />
               </div>
-              <CategoryPill categoryId={record.categoryId} categoryFromRecord={record.category} />
-            </div>
+            ))
+          : records.map(record => {
+              const isExpanded = expandedRows.has(record.id)
+              return (
+                <div key={record.id} className={`rounded-2xl border shadow-sm transition-all ${isExpanded ? 'border-blue-200 bg-blue-50/20' : 'border-slate-200 bg-white'}`}>
 
-            {/* Progress */}
-            <AmountProgress amount={record.amount} receivedAmount={record.receivedAmount} remainingAmount={record.remainingAmount} />
-
-            {/* Actions row */}
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <StatusDropdown recordId={record.id} currentStatus={record.status} />
-              <div className="flex items-center gap-2">
-                {/* Quick add payment button on mobile */}
-                {record.remainingAmount > 0 && (
-                  <button onClick={() => setPaymentModalRecord(record)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition-colors">
-                    <PlusCircle size={13} /> Pay
+                  {/* Card header — tap to expand */}
+                  <button className="w-full text-left p-4 space-y-3" onClick={() => toggleRow(record.id)}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-slate-800 text-sm">{record.name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{record.phone}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CategoryPill categoryId={record.categoryId} categoryFromRecord={record.category} />
+                        <ExpandIcon size={14} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                      </div>
+                    </div>
+                    <AmountProgress amount={record.amount} receivedAmount={record.receivedAmount} remainingAmount={record.remainingAmount} />
                   </button>
-                )}
-                <WhatsAppButton record={record} />
-                <RowActions record={record} />
-              </div>
-            </div>
-          </div>
-        ))}
+
+                  {/* Bottom action row */}
+                  <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-0">
+                    <StatusDropdown recordId={record.id} currentStatus={record.status} />
+                    <div className="flex items-center gap-2">
+                      <WhatsAppButton record={record} />
+                      <RowActions record={record} />
+                    </div>
+                  </div>
+
+                  {/* Expanded section on mobile */}
+                  {isExpanded && (
+                    <div className="border-t border-blue-100 px-4 py-4 bg-white rounded-b-2xl">
+                      <ExpandedRow
+                        record={record}
+                        colSpan={1}
+                        onPaymentAdded={() => toggleRow(record.id)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })
+        }
       </div>
 
       <Pagination />

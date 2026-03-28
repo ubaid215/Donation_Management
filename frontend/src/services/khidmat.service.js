@@ -23,6 +23,32 @@ export const getKhidmatPayments = (id)       => api.get(`/khidmat/${id}/payments
 // ── WhatsApp ──────────────────────────────────
 export const sendKhidmatWhatsApp = (id) => api.post(`/khidmat/${id}/whatsapp`)
 
+// ── Bulk Reminders ────────────────────────────
+/**
+ * Send bulk WhatsApp reminders
+ * @param {Object} payload - { statuses?: string[], filters?: { categoryId?, startDate?, endDate? } }
+ * @returns {Promise<{ sent: number, failed: number, skipped: number, total: number, results: Array }>}
+ */
+export const sendBulkReminders = async (payload = {}) => {
+  try {
+    const response = await api.post('/khidmat/bulk-reminders', payload)
+    return response // response already contains the data from interceptor
+  } catch (error) {
+    // If the error has a response with data, pass that through
+    if (error.response?.data) {
+      throw new Error(error.response.data.error || error.response.data.message || 'Failed to send bulk reminders')
+    }
+    throw error
+  }
+}
+
+/**
+ * Preview bulk reminders (count only)
+ * @param {Object} params - { statuses?: string, categoryId?, startDate?, endDate? }
+ * @returns {Promise<{ total: number, byStatus: Array }>}
+ */
+export const previewBulkReminders = (params = {}) => api.get('/khidmat/bulk-reminders/preview', { params })
+
 // ── Stats & Analytics ─────────────────────────
 export const getKhidmatStats     = (params = {}) => api.get('/khidmat/stats',     { params })
 export const getKhidmatAnalytics = (params = {}) => api.get('/khidmat/analytics', { params })

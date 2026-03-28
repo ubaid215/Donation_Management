@@ -46,28 +46,24 @@ const fmt = (val) =>
 //   khidmat_record     — vars: name, category
 // ─────────────────────────────────────────────
 const buildTemplatePayload = (record, categoryName) => {
-  const totalAmount    = parseFloat(record.amount.toString())
+  const totalAmount = parseFloat(record.amount.toString())
   const receivedAmount = parseFloat(record.receivedAmount.toString())
   const remainingAmount = totalAmount - receivedAmount
 
   switch (record.status) {
 
     case 'COMPLETED':
-  return {
-    templateName: 'khidmat_completed',
-    components: [{
-      type: 'body',
-      parameters: [
-        { type: 'text', text: record.name },                          // {{1}} name
-        { type: 'text', text: `Rs ${fmt(totalAmount)}` },            // {{2}} payment amount
-        { type: 'text', text: categoryName },                         // {{3}} purpose
-        { type: 'text', text: new Date(record.date).toLocaleDateString('en-PK', {
-            day: '2-digit', month: 'long', year: 'numeric'
-          })
-        },                                                            // {{4}} date
-      ]
-    }]
-  }
+      return {
+        templateName: 'khidmat_completed',
+        components: [{
+          type: 'body',
+          parameters: [
+            { type: 'text', text: record.name },                          // {{1}} name
+            { type: 'text', text: `Rs ${fmt(totalAmount)}` },            // {{2}} payment amount
+            { type: 'text', text: categoryName },                         // {{3}} purpose
+          ]
+        }]
+      }
 
     case 'PARTIAL':
       // Template body example:
@@ -111,18 +107,18 @@ export const sendKhidmatWhatsApp = async (recordId, userId, userRole, ipAddress 
     include: { category: { select: { name: true } } }
   })
 
-  if (!record)            throw new Error('KhidmatRecord not found')
-  if (record.isDeleted)   throw new Error('Cannot send WhatsApp for a deleted record')
+  if (!record) throw new Error('KhidmatRecord not found')
+  if (record.isDeleted) throw new Error('Cannot send WhatsApp for a deleted record')
 
   const categoryName = record.category?.name ?? 'General'
-  const totalAmount    = parseFloat(record.amount.toString())
+  const totalAmount = parseFloat(record.amount.toString())
   const receivedAmount = parseFloat(record.receivedAmount.toString())
   const remainingAmount = totalAmount - receivedAmount
 
   try {
     const { templateName, components } = buildTemplatePayload(record, categoryName)
     const apiResponse = await sendWhatsAppMessage(record.phone, templateName, components)
-    const messageId   = apiResponse?.messages?.[0]?.id ?? null
+    const messageId = apiResponse?.messages?.[0]?.id ?? null
 
     await prisma.khidmatRecord.update({
       where: { id: recordId },

@@ -176,6 +176,16 @@ export const sendWhatsappValidator = [
 // Add these validators to the existing file
 
 export const bulkReminderValidator = [
+  body('recordIds')
+    .optional()
+    .isArray({ min: 1 }).withMessage('recordIds must be a non-empty array')
+    .custom((ids) => {
+      if (!ids) return true
+      const allValid = ids.every(id => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id))
+      if (!allValid) throw new Error('Invalid record ID in recordIds array')
+      return true
+    }),
+
   body('statuses')
     .optional()
     .isArray().withMessage('statuses must be an array')
@@ -186,6 +196,13 @@ export const bulkReminderValidator = [
       if (!allValid) throw new Error('Invalid status in statuses array')
       return true
     }),
+
+  body().custom((_, { req }) => {
+    const { recordIds, statuses } = req.body
+    if (recordIds?.length > 0) return true
+    if (statuses?.length > 0) return true
+    throw new Error('Either recordIds or statuses must be provided')
+  }),
   
   body('filters')
     .optional()

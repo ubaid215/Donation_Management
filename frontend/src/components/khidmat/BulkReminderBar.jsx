@@ -143,7 +143,7 @@ const BulkReminderBar = () => {
       } else {
         // Send to selected people
         res = await sendBulkReminderMessages({
-          recordIds: selectedPeople, // You'll need to add this to your backend
+          recordIds: selectedPeople,
         });
       }
 
@@ -284,7 +284,7 @@ const BulkReminderBar = () => {
 
         {/* Person selection (only in manual mode) */}
         {selectionMode === "manual" && (
-          <div className="flex-1 min-w-0">
+          <div className="relative flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowPersonSelector(!showPersonSelector)}

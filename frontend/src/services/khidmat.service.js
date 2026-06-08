@@ -26,7 +26,7 @@ export const sendKhidmatWhatsApp = (id) => api.post(`/khidmat/${id}/whatsapp`)
 // ── Bulk Reminders ────────────────────────────
 /**
  * Send bulk WhatsApp reminders
- * @param {Object} payload - { statuses?: string[], filters?: { categoryId?, startDate?, endDate? } }
+ * @param {Object} payload - { recordIds?: string[], statuses?: string[], filters?: { categoryId?, startDate?, endDate? } }
  * @returns {Promise<{ sent: number, failed: number, skipped: number, total: number, results: Array }>}
  */
 export const sendBulkReminders = async (payload = {}) => {

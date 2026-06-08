@@ -70,9 +70,10 @@ export const previewBulkReminders = asyncHandler(async (req, res) => {
  * }
  */
 export const sendBulkRemindersController = asyncHandler(async (req, res) => {
-  const { statuses, filters = {} } = req.body
+  const { statuses, filters = {}, recordIds } = req.body
   
   const result = await sendBulkReminders({
+    recordIds,
     statuses: statuses || ['PARTIAL', 'RECORD_ONLY'],
     filters,
     userId: req.user.id,

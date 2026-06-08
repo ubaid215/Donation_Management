@@ -127,14 +127,16 @@ const sendBulkReminderMessages = useCallback(async (options = {}) => {
   setSendingBulk(true)
   const toastId = toast.loading('Sending bulk reminders...')
   try {
-    const payload = {
-      statuses: options.statuses || ['PARTIAL', 'RECORD_ONLY'],
-      filters: {
-        ...(options.categoryId && { categoryId: options.categoryId }),
-        ...(options.startDate && { startDate: options.startDate }),
-        ...(options.endDate && { endDate: options.endDate }),
-      }
-    }
+    const payload = options.recordIds?.length
+      ? { recordIds: options.recordIds }
+      : {
+          statuses: options.statuses || ['PARTIAL', 'RECORD_ONLY'],
+          filters: {
+            ...(options.categoryId && { categoryId: options.categoryId }),
+            ...(options.startDate && { startDate: options.startDate }),
+            ...(options.endDate && { endDate: options.endDate }),
+          }
+        }
     const result = await sendBulkReminders(payload)
     
     // Check if all failed due to template error

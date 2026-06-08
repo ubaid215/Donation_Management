@@ -128,28 +128,38 @@ const delay = (ms) => new Promise((res) => setTimeout(res, ms))
 //   { sent: number, failed: number, skipped: number, results: [...] }
 // ─────────────────────────────────────────────
 export const sendBulkReminders = async ({
+  recordIds,
   statuses = ['PARTIAL', 'RECORD_ONLY'],
   filters  = {},
   userId,
   userRole,
   ipAddress = null
 }) => {
-  if (!statuses || statuses.length === 0) {
-    throw new Error('At least one status must be specified')
-  }
+  let where
 
-  const { categoryId, startDate, endDate } = filters
+  if (recordIds?.length > 0) {
+    where = {
+      isDeleted: false,
+      id: { in: recordIds }
+    }
+  } else {
+    if (!statuses || statuses.length === 0) {
+      throw new Error('At least one status must be specified')
+    }
 
-  const where = {
-    isDeleted: false,
-    status:    { in: statuses },
-    ...(categoryId && { categoryId }),
-    ...((startDate || endDate) && {
-      date: {
-        ...(startDate && { gte: new Date(startDate) }),
-        ...(endDate   && { lte: new Date(endDate)   })
-      }
-    })
+    const { categoryId, startDate, endDate } = filters
+
+    where = {
+      isDeleted: false,
+      status:    { in: statuses },
+      ...(categoryId && { categoryId }),
+      ...((startDate || endDate) && {
+        date: {
+          ...(startDate && { gte: new Date(startDate) }),
+          ...(endDate   && { lte: new Date(endDate)   })
+        }
+      })
+    }
   }
 
   const records = await prisma.khidmatRecord.findMany({
@@ -215,8 +225,10 @@ export const sendBulkReminders = async ({
     userRole,
     entityType:  'KHIDMAT_RECORD',
     entityId:    'BULK',
-    description: `Bulk reminder sent — ${sent} sent, ${failed} failed, ${skipped} skipped (statuses: ${statuses.join(', ')})`,
-    metadata:    { statuses, filters, sent, failed, skipped, total: records.length },
+    description: recordIds?.length
+      ? `Bulk reminder sent to ${recordIds.length} selected record(s) — ${sent} sent, ${failed} failed, ${skipped} skipped`
+      : `Bulk reminder sent — ${sent} sent, ${failed} failed, ${skipped} skipped (statuses: ${statuses.join(', ')})`,
+    metadata:    { recordIds, statuses, filters, sent, failed, skipped, total: records.length },
     ipAddress
   })
 

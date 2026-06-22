@@ -33,6 +33,11 @@ const CategoryGridView = ({ categories, onEdit, onDelete, onToggleStatus }) => {
                   <h4 className="text-sm font-semibold text-gray-900 truncate">
                     {category.name}
                   </h4>
+                  {category.nameUrdu && (
+                    <p className="text-xs text-gray-600 truncate mt-0.5" dir="rtl">
+                      {category.nameUrdu}
+                    </p>
+                  )}
                   <span 
                     className={`inline-block text-xs px-2 py-0.5 rounded-full mt-1 ${
                       category.isActive 

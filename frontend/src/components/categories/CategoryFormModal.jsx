@@ -1,5 +1,6 @@
 import React from 'react'
 import { Tag, CheckCircle } from 'lucide-react'
+import { getCategoryBilingual } from '../../utils/categoryDisplay'
 
 const CategoryFormModal = ({ 
   type, 
@@ -60,23 +61,38 @@ const CategoryFormModal = ({
           </div>
           
           <form onSubmit={onSubmit} className="space-y-3 md:space-y-4">
-            {/* Name */}
+            {/* Name (English reference) */}
             <div>
               <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1 md:mb-2">
-                Category Name *
+                Category Name (English) *
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 className={`input text-xs md:text-sm py-2 ${formErrors.name ? 'input-error' : ''}`}
-                placeholder="e.g., Temple Maintenance"
+                placeholder="e.g., Education, Masjid, Food"
                 maxLength={100}
               />
               {formErrors.name && (
                 <p className="mt-1 text-xs text-red-600">{formErrors.name}</p>
               )}
+              <p className="mt-1 text-xs text-gray-500">
+                Urdu translation is generated automatically when you save.
+              </p>
             </div>
+
+            {/* Urdu name (read-only, from saved category or preview) */}
+            {(formData.nameUrdu || category?.nameUrdu) && (
+              <div>
+                <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1 md:mb-2">
+                  Category Name (Urdu)
+                </label>
+                <div className="input text-xs md:text-sm py-2 bg-gray-50 text-gray-800" dir="rtl" style={{ fontFamily: 'inherit' }}>
+                  {formData.nameUrdu || category?.nameUrdu}
+                </div>
+              </div>
+            )}
             
             {/* Description */}
             <div>
@@ -174,7 +190,7 @@ const CategoryFormModal = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm md:text-base font-medium text-gray-900">
-                    {formData.name || 'Category Name'}
+                    {getCategoryBilingual(formData)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1 truncate">
                     {formData.description || 'No description'}

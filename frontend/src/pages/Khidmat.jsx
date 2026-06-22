@@ -4,16 +4,18 @@
 // ============================================================
 
 import React, { useEffect, useState } from 'react'
-import { Plus, FileDown, HandHeart, TrendingUp, List } from 'lucide-react'
+import { Plus, FileDown, HandHeart, TrendingUp, List, User } from 'lucide-react'
 import { KhidmatProvider, useKhidmat } from '../context/KhidmatContext'
 import KhidmatFilter    from '../components/khidmat/KhidmatFilter'
 import KhidmatTable     from '../components/khidmat/KhidmatTable'
 import KhidmatForm      from '../components/khidmat/KhidmatForm'
 import KhidmatAnalytics from '../components/khidmat/KhidmatAnalytics'
+import KhidmatByPerson  from '../components/khidmat/KhidmatByPerson'
 import BulkReminderBar  from '../components/khidmat/BulkReminderBar'
 
 const TABS = [
   { id: 'records',   label: 'Records',   icon: List       },
+  { id: 'by-person', label: 'By Person', icon: User       },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
 ]
 
@@ -25,6 +27,8 @@ const KhidmatPageInner = () => {
     if (activeTab === 'records') fetchRecords()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, filters.categoryId, filters.startDate, filters.endDate, filters.page, activeTab])
+
+  // By-person tab handles its own data loading via KhidmatByPerson
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -74,14 +78,14 @@ const KhidmatPageInner = () => {
         {/* Content */}
         {activeTab === 'records' ? (
           <>
-            {/* ── Bulk reminder bar — lives above filters ── */}
             <BulkReminderBar />
-
             <KhidmatFilter />
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <KhidmatTable />
             </div>
           </>
+        ) : activeTab === 'by-person' ? (
+          <KhidmatByPerson />
         ) : (
           <KhidmatAnalytics />
         )}

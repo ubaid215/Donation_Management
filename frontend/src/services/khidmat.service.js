@@ -73,6 +73,22 @@ export const downloadKhidmatReceipt = async (id, name = 'receipt') => {
   _trigger(res, `khidmat-receipt-${name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.pdf`)
 }
 
+export const getKhidmatByPerson = (params = {}) => api.get('/khidmat/by-person', { params })
+
+export const downloadKhidmatByPersonReport = async (params = {}) => {
+  const res = await api.get('/khidmat/reports/by-person', { params, responseType: 'blob' })
+  const year = params.year || 'all'
+  _trigger(res, `khidmat-by-person-${year}-${_today()}.pdf`)
+}
+
+export const downloadKhidmatPersonReport = async (phoneKey, name, params = {}) => {
+  const res = await api.get(`/khidmat/reports/by-person/${encodeURIComponent(phoneKey)}`, {
+    params, responseType: 'blob'
+  })
+  const safe = (name || 'person').replace(/[^a-z0-9]/gi, '-').toLowerCase()
+  _trigger(res, `khidmat-${safe}-${_today()}.pdf`)
+}
+
 const _today   = () => new Date().toISOString().split('T')[0]
 const _trigger = (blob, filename) => {
   const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))

@@ -165,6 +165,7 @@ const Categories = () => {
   const prepareEdit = (category) => {
     setCategoryForm({
       name: category.name,
+      nameUrdu: category.nameUrdu || '',
       description: category.description || '',
       icon: category.icon || 'Tag',
       color: category.color || '#3b82f6',

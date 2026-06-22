@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useKhidmat, STATUS_LABELS, STATUS_COLORS } from '../../context/KhidmatContext'
 import { useDonations } from '../../context/DonationContext'
+import { getCategoryUrdu } from '../../utils/categoryDisplay'
 
 // ─────────────────────────────────────────────
 // Portal dropdown hook (fixes overflow clipping)
@@ -94,7 +95,7 @@ const CategoryPill = ({ categoryId, categoryFromRecord }) => {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#3b82f6' }} />
-      {cat.name}
+      {getCategoryUrdu(cat)}
     </span>
   )
 }

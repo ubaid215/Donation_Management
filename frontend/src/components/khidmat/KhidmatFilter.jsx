@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useKhidmat, STATUS_COLORS } from '../../context/KhidmatContext'
 import { useDonations } from '../../context/DonationContext'
+import { getCategoryUrdu } from '../../utils/categoryDisplay'
 
 // ─────────────────────────────────────────────
 // Status options
@@ -91,7 +92,7 @@ const KhidmatFilter = () => {
 
   // Resolve selected category name for dropdown label
   const selectedCatName = local.categoryId
-    ? activeCategories.find(c => c.id === local.categoryId)?.name || 'Category'
+    ? getCategoryUrdu(activeCategories.find(c => c.id === local.categoryId)) || 'Category'
     : 'All categories'
 
   return (
@@ -224,7 +225,12 @@ const KhidmatFilter = () => {
                           className="w-2 h-2 rounded-full flex-shrink-0"
                           style={{ backgroundColor: cat.color || '#3b82f6' }}
                         />
-                        {cat.name}
+                        <span className="flex flex-col">
+                          <span>{getCategoryUrdu(cat)}</span>
+                          {cat.nameUrdu && cat.name !== cat.nameUrdu && (
+                            <span className="text-[10px] text-slate-400 font-normal">{cat.name}</span>
+                          )}
+                        </span>
                       </button>
                     ))}
                   </div>

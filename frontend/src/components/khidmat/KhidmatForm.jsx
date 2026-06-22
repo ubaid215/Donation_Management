@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useKhidmat, STATUS_COLORS } from '../../context/KhidmatContext'
 import { useDonations } from '../../context/DonationContext'
+import { getCategoryUrdu } from '../../utils/categoryDisplay'
 
 const STATUS_OPTIONS = [
   { value: 'COMPLETED',   label: 'Completed',   desc: 'Fully received',   icon: CheckCircle2, colors: STATUS_COLORS.COMPLETED   },
@@ -219,7 +220,7 @@ const KhidmatForm = () => {
           <Field label="Category" icon={<Tag size={15} />} error={errors.categoryId} required>
             <select value={form.categoryId} onChange={set('categoryId')} disabled={categoriesLoading} className={inputCls(errors.categoryId)}>
               <option value="">{categoriesLoading ? 'Loading…' : 'Select category'}</option>
-              {activeCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+              {activeCategories.map(cat => <option key={cat.id} value={cat.id}>{getCategoryUrdu(cat)}</option>)}
             </select>
           </Field>
 

@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { useKhidmat } from "../../context/KhidmatContext";
 
+const REMINDER_STATUSES = ['PARTIAL', 'RECORD_ONLY']
+
 const STATUS_CONFIG = {
   PARTIAL: {
     label: "Partial",
@@ -112,10 +114,10 @@ const BulkReminderBar = () => {
   };
 
   const selectAllCurrentRecords = () => {
-    const allIds = records.map((r) => r.id);
-    setSelectedPeople(allIds);
-    setShowPersonSelector(false);
-  };
+    const eligibleIds = eligibleRecords.map((r) => r.id)
+    setSelectedPeople(eligibleIds)
+    setShowPersonSelector(false)
+  }
 
   const clearSelection = () => {
     setSelectedPeople([]);
@@ -176,8 +178,11 @@ const BulkReminderBar = () => {
 
   const previewCount = getPreviewCount();
 
+  // Only pending & partial records are eligible for reminders
+  const eligibleRecords = records.filter((r) => REMINDER_STATUSES.includes(r.status))
+
   // Get the list of selected people details
-  const selectedPeopleDetails = records.filter((r) =>
+  const selectedPeopleDetails = eligibleRecords.filter((r) =>
     selectedPeople.includes(r.id),
   );
 
@@ -247,7 +252,9 @@ const BulkReminderBar = () => {
         {/* Status toggles (only in status mode) */}
         {selectionMode === "status" && (
           <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
-            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => {
+            {Object.entries(STATUS_CONFIG)
+              .filter(([key]) => REMINDER_STATUSES.includes(key))
+              .map(([key, cfg]) => {
               const Icon = cfg.icon;
               const active = selectedStatuses.includes(key);
               return (
@@ -317,11 +324,15 @@ const BulkReminderBar = () => {
                     onClick={selectAllCurrentRecords}
                     className="text-xs text-blue-600 hover:text-blue-700"
                   >
-                    Select All ({records.length})
+                    Select All ({eligibleRecords.length})
                   </button>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
-                  {records.map((record) => (
+                  {eligibleRecords.length === 0 ? (
+                    <p className="px-3 py-4 text-xs text-slate-400 text-center">
+                      No pending or partial records on this page
+                    </p>
+                  ) : eligibleRecords.map((record) => (
                     <label
                       key={record.id}
                       className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50"

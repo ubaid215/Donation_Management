@@ -54,6 +54,11 @@ const CategoryListView = ({
                       <div className="text-sm md:text-base font-medium text-gray-900 truncate">
                         {category.name}
                       </div>
+                      {category.nameUrdu && (
+                        <div className="text-xs text-gray-600 truncate" dir="rtl">
+                          {category.nameUrdu}
+                        </div>
+                      )}
                       <div className="text-xs text-gray-500 truncate">
                         ID: {category.id ? category.id.substring(0, 8) : 'N/A'}...
                       </div>

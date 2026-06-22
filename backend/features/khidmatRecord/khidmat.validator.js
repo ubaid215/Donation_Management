@@ -150,9 +150,10 @@ export const deleteKhidmatValidator = [
 // ─────────────────────────────────────────────
 export const listKhidmatValidator = [
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
-  query('limit').optional().isInt({ min: 1, max: 200 }).withMessage('Limit must be 1–200'),
+  query('limit').optional().isInt({ min: 1, max: 1000 }).withMessage('Limit must be 1–1000'),
   query('status').optional().isIn(['COMPLETED', 'PARTIAL', 'RECORD_ONLY']).withMessage('Invalid status'),
   query('categoryId').optional().isUUID().withMessage('Invalid category ID'),
+  query('year').optional().isInt({ min: 2000, max: 2100 }).withMessage('Invalid year'),
   handleValidation
 ]
 

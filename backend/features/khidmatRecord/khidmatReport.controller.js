@@ -49,7 +49,7 @@ const fetchRecordsForReport = async (filters = {}) => {
     orderBy: { date: 'desc' },
     take: 10000,
     include: {
-      category: { select: { id: true, name: true } },
+      category: { select: { id: true, name: true, nameUrdu: true } },
       operator: { select: { id: true, name: true } }
     }
   });
@@ -154,7 +154,7 @@ export const generateKhidmatReceipt = asyncHandler(async (req, res) => {
     const record = await prisma.khidmatRecord.findUnique({
       where: { id },
       include: {
-        category: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, nameUrdu: true } },
         operator: { select: { id: true, name: true } }
       }
     });
@@ -181,6 +181,79 @@ export const generateKhidmatReceipt = asyncHandler(async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to generate khidmat receipt',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// ─────────────────────────────────────────────
+// GET /api/khidmat/reports/by-person
+// Grouped by person PDF (all people)
+// ─────────────────────────────────────────────
+export const generateByPersonReport = asyncHandler(async (req, res) => {
+  try {
+    const { KhidmatRecordService } = await import('./khidmat.service.js');
+    const service = new KhidmatRecordService();
+    const { people } = await service.getRecordsGroupedByPerson(req.query, req.user);
+
+    const pdfBuffer = await pdfGenerator.generateByPersonReport(
+      people,
+      req.query,
+      process.env.ORG_NAME || 'Donation Management Khanqah'
+    );
+
+    const year = req.query.year || 'all';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=khidmat-by-person-${year}-${new Date().toISOString().split('T')[0]}.pdf`
+    );
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('By-person report error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate by-person report',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+});
+
+// ─────────────────────────────────────────────
+// GET /api/khidmat/reports/by-person/:phone
+// Single person PDF
+// ─────────────────────────────────────────────
+export const generateSinglePersonReport = asyncHandler(async (req, res) => {
+  try {
+    const { KhidmatRecordService } = await import('./khidmat.service.js');
+    const service = new KhidmatRecordService();
+    const { people } = await service.getRecordsGroupedByPerson(req.query, req.user);
+
+    const phoneKey = decodeURIComponent(req.params.phone).replace(/\D/g, '');
+    const person = people.find(p => p.key === phoneKey || p.phone.replace(/\D/g, '') === phoneKey);
+
+    if (!person) {
+      return res.status(404).json({ success: false, message: 'No records found for this person' });
+    }
+
+    const pdfBuffer = await pdfGenerator.generateSinglePersonReport(
+      person,
+      req.query,
+      process.env.ORG_NAME || 'Donation Management Khanqah'
+    );
+
+    const safeName = person.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=khidmat-${safeName}-${new Date().toISOString().split('T')[0]}.pdf`
+    );
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Single person report error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate person report',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }

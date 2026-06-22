@@ -61,7 +61,7 @@ export class KhidmatRecordService {
           operatorId: userId,
         },
         include: {
-          category: { select: { id: true, name: true, icon: true, color: true } },
+          category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
           operator: { select: { id: true, name: true } },
           payments: true,
         }
@@ -137,7 +137,7 @@ export class KhidmatRecordService {
         where: { id: recordId },
         data: { receivedAmount: newReceived, status: newStatus },
         include: {
-          category: { select: { id: true, name: true, icon: true, color: true } },
+          category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
           operator: { select: { id: true, name: true } },
           payments: { orderBy: { paidAt: 'desc' } },
         }
@@ -239,7 +239,7 @@ export class KhidmatRecordService {
         skip: (pageNum - 1) * limitNum,
         take: limitNum,
         include: {
-          category: { select: { id: true, name: true, icon: true, color: true } },
+          category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
           operator: { select: { id: true, name: true } },
           payments: { orderBy: { paidAt: 'desc' }, take: 5 }
         }
@@ -254,13 +254,102 @@ export class KhidmatRecordService {
   }
 
   // ─────────────────────────────────────────────
+  // GET GROUPED BY PERSON  (yearly / filtered view)
+  // ─────────────────────────────────────────────
+  async getRecordsGroupedByPerson(filters = {}, requestingUser = null) {
+    const {
+      search, status, categoryId, year,
+      startDate, endDate
+    } = filters
+
+    // Year filter takes precedence for date range
+    let dateStart = startDate
+    let dateEnd = endDate
+    if (year) {
+      dateStart = `${year}-01-01`
+      dateEnd = `${year}-12-31`
+    }
+
+    const where = {
+      isDeleted: false,
+      ...(requestingUser?.role === 'OPERATOR' && { operatorId: requestingUser.id }),
+      ...(categoryId && { categoryId }),
+      ...(status && { status }),
+      ...((dateStart || dateEnd) && {
+        date: {
+          ...(dateStart && { gte: new Date(dateStart) }),
+          ...(dateEnd && { lte: new Date(dateEnd) })
+        }
+      }),
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { phone: { contains: search, mode: 'insensitive' } },
+        ]
+      })
+    }
+
+    const records = await prisma.khidmatRecord.findMany({
+      where,
+      orderBy: [{ name: 'asc' }, { date: 'desc' }],
+      take: 10000,
+      include: {
+        category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
+        operator: { select: { id: true, name: true } },
+        payments: { orderBy: { paidAt: 'desc' }, take: 3 }
+      }
+    })
+
+    const normalized = records.map(normalizeRecord)
+    const personMap = new Map()
+
+    for (const record of normalized) {
+      const phoneKey = (record.phone || '').replace(/\D/g, '') || record.name.toLowerCase().trim()
+      if (!personMap.has(phoneKey)) {
+        personMap.set(phoneKey, {
+          key: phoneKey,
+          name: record.name,
+          phone: record.phone,
+          address: record.address,
+          records: [],
+          totalPledged: 0,
+          totalReceived: 0,
+          totalRemaining: 0,
+          recordCount: 0,
+        })
+      }
+      const person = personMap.get(phoneKey)
+      person.records.push(record)
+      person.totalPledged += record.amount
+      person.totalReceived += record.receivedAmount
+      person.totalRemaining += record.remainingAmount
+      person.recordCount += 1
+      // Keep most recent name/address
+      if (record.name) person.name = record.name
+      if (record.address) person.address = record.address
+    }
+
+    const people = Array.from(personMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })
+    )
+
+    return {
+      people,
+      totalPeople: people.length,
+      totalRecords: normalized.length,
+      year: year || null,
+      filters: { search, status, categoryId, startDate: dateStart, endDate: dateEnd }
+    }
+  }
+
+  // ─────────────────────────────────────────────
   // GET BY ID
   // ─────────────────────────────────────────────
   async getRecordById(id) {
     const record = await prisma.khidmatRecord.findUnique({
       where: { id },
       include: {
-        category: { select: { id: true, name: true, icon: true, color: true } },
+        category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
         operator: { select: { id: true, name: true, email: true } },
         payments: { orderBy: { paidAt: 'desc' } }
       }
@@ -308,7 +397,7 @@ export class KhidmatRecordService {
         where: { id },
         data: updateData,
         include: {
-          category: { select: { id: true, name: true, icon: true, color: true } },
+          category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
           operator: { select: { id: true, name: true } },
           payments: { orderBy: { paidAt: 'desc' } }
         }

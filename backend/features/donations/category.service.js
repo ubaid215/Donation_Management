@@ -1,5 +1,6 @@
 import prisma from '../../config/prisma.js';
 import { createAuditLog } from '../../utils/auditLogger.js';
+import { translateToUrdu } from '../../utils/translate.js';
 
 export class DonationCategoryService {
   constructor() {
@@ -17,9 +18,12 @@ export class DonationCategoryService {
         throw new Error('Category with this name already exists');
       }
 
+      const nameUrdu = await translateToUrdu(categoryData.name);
+
       const newCategory = await tx.donationCategory.create({
         data: {
           name: categoryData.name,
+          nameUrdu,
           description: categoryData.description,
           icon: categoryData.icon || 'Tag',
           color: categoryData.color || '#3b82f6',
@@ -97,6 +101,7 @@ export class DonationCategoryService {
       return {
         id: cat.id,
         name: cat.name,
+        nameUrdu: cat.nameUrdu,
         description: cat.description,
         icon: cat.icon,
         color: cat.color,
@@ -184,6 +189,7 @@ export class DonationCategoryService {
       return {
         id: cat.id,
         name: cat.name,
+        nameUrdu: cat.nameUrdu,
         description: cat.description,
         icon: cat.icon,
         color: cat.color,
@@ -206,7 +212,8 @@ export class DonationCategoryService {
         throw new Error('Category not found');
       }
 
-      // If name is being updated, check for duplicates
+      // If name is being updated, check for duplicates and re-translate
+      const updatePayload = { ...updateData };
       if (updateData.name && updateData.name !== existing.name) {
         const duplicate = await tx.donationCategory.findUnique({
           where: { name: updateData.name }
@@ -215,11 +222,12 @@ export class DonationCategoryService {
         if (duplicate) {
           throw new Error('Category with this name already exists');
         }
+        updatePayload.nameUrdu = await translateToUrdu(updateData.name);
       }
 
       const updatedCategory = await tx.donationCategory.update({
         where: { id },
-        data: updateData
+        data: updatePayload
       });
 
       // Log the action

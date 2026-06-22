@@ -214,7 +214,7 @@ export class KhidmatPDFGenerator {
     }
     this.doc.rect(MARGIN, y, USABLE_WIDTH, ROW_H).fill(bg);
 
-    const catName = record.category?.name || 'General';
+    const catName = record.category?.nameUrdu || record.category?.name || 'General';
     const cells = [
       this._truncate(this._formatDate(record.date || record.createdAt), 12),
       this._truncate(record.name  || 'N/A', 22),
@@ -647,7 +647,7 @@ export class KhidmatPDFGenerator {
           ry += gap;
         };
 
-        const catName = record.category?.name || 'General';
+        const catName = record.category?.nameUrdu || record.category?.name || 'General';
 
         field('Name',         record.name);
         field('Phone',        record.phone);
@@ -677,6 +677,149 @@ export class KhidmatPDFGenerator {
 
       } catch (err) {
         console.error('Khidmat Receipt PDF Error:', err);
+        reject(err);
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PUBLIC: Grouped by Person Report (all people)
+  // ─────────────────────────────────────────────────────────────
+  async generateByPersonReport(people, filters = {}, organizationName) {
+    if (organizationName) this.organizationName = organizationName;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const chunks = [];
+        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this._pageCount = 0;
+
+        this.doc.on('data',  c  => chunks.push(c));
+        this.doc.on('end',   () => resolve(Buffer.concat(chunks)));
+        this.doc.on('error', reject);
+
+        const yearLabel = filters.year ? `Year ${filters.year}` : 'All Years';
+        let y = this._newPage();
+        y = this._drawPageHeader('Khidmat Records by Person', yearLabel);
+
+        for (const person of people) {
+          const blockH = 28 + person.records.length * ROW_H + 40;
+          if (y + blockH > CONTENT_BOT) {
+            y = this._newPage();
+            y = this._drawPageHeader('Khidmat Records by Person (cont.)', yearLabel);
+          }
+
+          // Person header
+          this.doc.roundedRect(MARGIN, y, USABLE_WIDTH, 26, 4).fill(this.lightGray);
+          this.doc.fontSize(10).font('Helvetica-Bold').fillColor(this.primaryColor)
+            .text(`${person.name}  ·  ${person.phone}`, MARGIN + 10, y + 8, { width: USABLE_WIDTH - 20, lineBreak: false });
+          y += 32;
+
+          // Mini table header
+          const miniCols = [80, 100, 80, 80, 75];
+          const miniHdrs = ['Date', 'Category', 'Pledged', 'Received', 'Status'];
+          let x = MARGIN;
+          miniHdrs.forEach((h, i) => {
+            this.doc.rect(x, y, miniCols[i], HDR_H).fill(this.primaryColor);
+            this.doc.fontSize(7).font('Helvetica-Bold').fillColor(this.white)
+              .text(h, x + 4, y + 7, { width: miniCols[i] - 8, lineBreak: false });
+            x += miniCols[i];
+          });
+          y += HDR_H;
+
+          for (const rec of person.records) {
+            const catLabel = rec.category?.nameUrdu || rec.category?.name || '—';
+            const cells = [
+              this._formatDate(rec.date),
+              this._truncate(catLabel, 14),
+              `Rs ${this._formatAmount(rec.amount)}`,
+              `Rs ${this._formatAmount(rec.receivedAmount)}`,
+              this._statusLabel(rec.status),
+            ];
+            x = MARGIN;
+            cells.forEach((cell, i) => {
+              this.doc.rect(x, y, miniCols[i], ROW_H).strokeColor(this.midGray).lineWidth(0.3).stroke();
+              this.doc.fontSize(7).font('Helvetica').fillColor(this.textColor)
+                .text(cell, x + 4, y + 8, { width: miniCols[i] - 8, lineBreak: false });
+              x += miniCols[i];
+            });
+            y += ROW_H;
+          }
+
+          // Person totals
+          this.doc.fontSize(8).font('Helvetica-Bold').fillColor(this.darkGray)
+            .text(
+              `Total: Rs ${this._formatAmount(person.totalPledged)} pledged · Rs ${this._formatAmount(person.totalReceived)} received · Rs ${this._formatAmount(person.totalRemaining)} remaining`,
+              MARGIN, y + 6, { width: USABLE_WIDTH, lineBreak: false }
+            );
+          y += 28;
+        }
+
+        // Footers on all pages
+        for (let p = 1; p <= this._pageCount; p++) {
+          this.doc.switchToPage(p - 1);
+          this._writeFooter(p, this._pageCount);
+        }
+
+        this.doc.end();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PUBLIC: Single Person Report
+  // ─────────────────────────────────────────────────────────────
+  async generateSinglePersonReport(person, filters = {}, organizationName) {
+    if (organizationName) this.organizationName = organizationName;
+
+    return new Promise((resolve, reject) => {
+      try {
+        const chunks = [];
+        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this._pageCount = 0;
+
+        this.doc.on('data',  c  => chunks.push(c));
+        this.doc.on('end',   () => resolve(Buffer.concat(chunks)));
+        this.doc.on('error', reject);
+
+        const yearLabel = filters.year ? `Year ${filters.year}` : '';
+        this.doc.addPage();
+        this._pageCount = 1;
+
+        this.doc.rect(0, 0, A4_WIDTH, 10).fill(this.primaryColor);
+        this.doc.rect(0, 10, A4_WIDTH, 4).fill(this.accentColor);
+
+        let y = this._drawPageHeader(
+          'Khidmat Records',
+          `${person.name} · ${person.phone}${yearLabel ? ` · ${yearLabel}` : ''}`
+        );
+
+        // Summary box
+        this.doc.roundedRect(MARGIN, y, USABLE_WIDTH, 50, 6).fill(this.lightGray);
+        this.doc.fontSize(9).font('Helvetica').fillColor(this.darkGray)
+          .text(`Records: ${person.recordCount}`, MARGIN + 15, y + 12)
+          .text(`Total Pledged: Rs ${this._formatAmount(person.totalPledged)}`, MARGIN + 15, y + 28)
+          .text(`Total Received: Rs ${this._formatAmount(person.totalReceived)}`, MARGIN + 200, y + 12)
+          .text(`Remaining: Rs ${this._formatAmount(person.totalRemaining)}`, MARGIN + 200, y + 28);
+        y += 65;
+
+        // Full table
+        y = this._drawTableHeader(y);
+        let rowIndex = 0;
+        for (const rec of person.records) {
+          if (y + ROW_H > CONTENT_BOT) {
+            y = this._newPage();
+            y = this._drawTableHeader(y);
+            rowIndex = 0;
+          }
+          y = this._drawTableRow(rec, y, rowIndex++);
+        }
+
+        this._writeFooter(1, 1);
+        this.doc.end();
+      } catch (err) {
         reject(err);
       }
     });

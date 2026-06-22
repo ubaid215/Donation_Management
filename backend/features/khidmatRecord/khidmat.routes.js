@@ -6,7 +6,7 @@ import { Router } from 'express'
 import { authMiddleware, adminOnlyMiddleware } from '../../middlewares/auth.js'
 
 import {
-  createRecord, getAllRecords, getRecord, updateRecord,
+  createRecord, getAllRecords, getRecordsByPerson, getRecord, updateRecord,
   deleteRecord, restoreRecord, addPayment, getPayments,
   getStats, getAnalytics, sendWhatsApp
 } from './khidmat.controller.js'
@@ -25,7 +25,8 @@ import {
 } from './khidmat.validator.js'
 
 import {
-  generateKhidmatReport, generateKhidmatCategoryReport, generateKhidmatReceipt
+  generateKhidmatReport, generateKhidmatCategoryReport, generateKhidmatReceipt,
+  generateByPersonReport, generateSinglePersonReport
 } from './khidmatReport.controller.js'
 
 const router = Router()
@@ -44,9 +45,12 @@ router.post('/bulk-reminders', adminOnlyMiddleware, bulkReminderValidator, sendB
 // ── PDF Reports ───────────────────────────────
 router.get('/reports/full',          generateKhidmatReport)
 router.get('/reports/category',      generateKhidmatCategoryReport)
+router.get('/reports/by-person',     generateByPersonReport)
+router.get('/reports/by-person/:phone', generateSinglePersonReport)
 router.get('/reports/receipt/:id',   generateKhidmatReceipt)
 
 // ── CRUD ──────────────────────────────────────
+router.get('/by-person', listKhidmatValidator, getRecordsByPerson)
 router.get('/',    listKhidmatValidator,   getAllRecords)
 router.post('/',   createKhidmatValidator, createRecord)
 router.get('/:id', getRecord)

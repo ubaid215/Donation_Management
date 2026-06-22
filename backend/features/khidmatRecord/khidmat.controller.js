@@ -27,6 +27,14 @@ export const getAllRecords = asyncHandler(async (req, res) => {
 })
 
 // ─────────────────────────────────────────────
+// GET /api/khidmat/by-person
+// ─────────────────────────────────────────────
+export const getRecordsByPerson = asyncHandler(async (req, res) => {
+  const result = await service.getRecordsGroupedByPerson(req.query, req.user)
+  res.json({ success: true, ...result })
+})
+
+// ─────────────────────────────────────────────
 // GET /api/khidmat/:id
 // ─────────────────────────────────────────────
 export const getRecord = asyncHandler(async (req, res) => {

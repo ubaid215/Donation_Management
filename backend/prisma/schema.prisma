@@ -164,6 +164,7 @@ model Donation {
 model DonationCategory {
   id          String   @id @default(uuid())
   name        String   @unique
+  nameUrdu    String?  // Auto-translated from name (en → ur)
   description String?
   icon        String?  @default("Tag")
   color       String?  @default("#3b82f6")

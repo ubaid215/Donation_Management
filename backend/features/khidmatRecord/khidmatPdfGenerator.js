@@ -5,6 +5,7 @@
 // ============================================================
 
 import PDFDocument from 'pdfkit';
+import { registerPdfFonts, writePdfText } from '../../utils/pdfFonts.js';
 
 // ─── Page geometry (same as pdfGenerator.js) ────────────────
 const A4_HEIGHT    = 841.89;
@@ -77,6 +78,15 @@ export class KhidmatPDFGenerator {
     return STATUS_LABEL[status] || status || 'N/A';
   }
 
+  _initDoc(doc) {
+    registerPdfFonts(doc);
+    return doc;
+  }
+
+  _pdfText(text, x, y, opts = {}) {
+    return writePdfText(this.doc, text, x, y, opts);
+  }
+
   // ── Page chrome ──────────────────────────────────────────────
 
   /** Add a new page with the top colour bar; returns starting Y */
@@ -111,13 +121,16 @@ export class KhidmatPDFGenerator {
     let y  = PAGE_TOP + 10;
     const bH = subtitle ? 72 : 58;
     this.doc.roundedRect(MARGIN, y, USABLE_WIDTH, bH, 6).fill(this.lightGray);
-    this.doc.fontSize(19).font('Helvetica-Bold').fillColor(this.primaryColor)
-      .text(this.organizationName, MARGIN, y + 10, { align: 'center', width: USABLE_WIDTH });
-    this.doc.fontSize(12).font('Helvetica').fillColor(this.textColor)
-      .text(title, MARGIN, y + 34, { align: 'center', width: USABLE_WIDTH });
+    this._pdfText(this.organizationName, MARGIN, y + 10, {
+      size: 19, bold: true, width: USABLE_WIDTH, align: 'center', color: this.primaryColor,
+    });
+    this._pdfText(title, MARGIN, y + 34, {
+      size: 12, width: USABLE_WIDTH, align: 'center', color: this.textColor,
+    });
     if (subtitle) {
-      this.doc.fontSize(9).fillColor(this.darkGray)
-        .text(subtitle, MARGIN, y + 54, { align: 'center', width: USABLE_WIDTH });
+      this._pdfText(subtitle, MARGIN, y + 54, {
+        size: 9, width: USABLE_WIDTH, align: 'center', color: this.darkGray,
+      });
     }
     y += bH + 12;
     this.doc.fontSize(8).font('Helvetica').fillColor(this.darkGray)
@@ -227,10 +240,11 @@ export class KhidmatPDFGenerator {
     this.doc.fontSize(9).font('Helvetica').fillColor(this.textColor);
     let x = MARGIN;
     cells.forEach((cell, i) => {
-      this.doc.text(cell, x + 4, y + 7, {
+      this._pdfText(cell, x + 4, y + 7, {
+        size: 9,
         width: COL_WIDTHS[i] - 8,
         align: i === 3 ? 'right' : 'left',
-        lineBreak: false
+        color: this.textColor,
       });
       x += COL_WIDTHS[i];
     });
@@ -347,10 +361,11 @@ export class KhidmatPDFGenerator {
       this.doc.fontSize(9).font('Helvetica').fillColor(this.textColor);
       let sx = MARGIN;
       row.forEach((cell, i) => {
-        this.doc.text(cell, sx + 4, y + 7, {
+        this._pdfText(cell, sx + 4, y + 7, {
+          size: 9,
           width: sw[i] - 8,
           align: i > 0 ? 'right' : 'left',
-          lineBreak: false
+          color: this.textColor,
         });
         sx += sw[i];
       });
@@ -366,7 +381,7 @@ export class KhidmatPDFGenerator {
   _drawCategoryBreakdown(records, yStart, totalPages) {
     const map = new Map();
     records.forEach(r => {
-      const cat = r.category?.name || 'Uncategorized';
+      const cat = r.category?.nameUrdu || r.category?.name || 'Uncategorized';
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat).push(r);
     });
@@ -418,10 +433,11 @@ export class KhidmatPDFGenerator {
       this.doc.fontSize(9).font('Helvetica').fillColor(this.textColor);
       let sx = MARGIN;
       row.forEach((cell, i) => {
-        this.doc.text(cell, sx + 4, y + 7, {
+        this._pdfText(cell, sx + 4, y + 7, {
+          size: 9,
           width: sw[i] - 8,
           align: i > 0 ? 'right' : 'left',
-          lineBreak: false
+          color: this.textColor,
         });
         sx += sw[i];
       });
@@ -472,7 +488,7 @@ export class KhidmatPDFGenerator {
     }
 
     // Category breakdown
-    const catSet = new Set(records.map(r => r.category?.name || 'Uncategorized'));
+    const catSet = new Set(records.map(r => r.category?.nameUrdu || r.category?.name || 'Uncategorized'));
     if (catSet.size > 0) {
       if (y + 60 > CONTENT_BOT) { pages++; y = PAGE_TOP; }
       y += 22 + HDR_H;
@@ -494,7 +510,7 @@ export class KhidmatPDFGenerator {
     return new Promise((resolve, reject) => {
       try {
         const chunks = [];
-        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this.doc = this._initDoc(new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false }));
         this._pageCount = 0;
 
         this.doc.on('data',  c  => chunks.push(c));
@@ -559,7 +575,7 @@ export class KhidmatPDFGenerator {
     return new Promise((resolve, reject) => {
       try {
         const chunks = [];
-        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this.doc = this._initDoc(new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false }));
         this._pageCount = 0;
 
         this.doc.on('data',  c  => chunks.push(c));
@@ -611,7 +627,7 @@ export class KhidmatPDFGenerator {
     return new Promise((resolve, reject) => {
       try {
         const chunks = [];
-        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this.doc = this._initDoc(new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false }));
         this._pageCount = 0;
 
         this.doc.on('data',  c  => chunks.push(c));
@@ -640,10 +656,10 @@ export class KhidmatPDFGenerator {
         const gap = 32;
 
         const field = (label, value) => {
-          this.doc.fontSize(9).font('Helvetica').fillColor(this.darkGray)
-            .text(label, lX, ry, { width: 150, lineBreak: false });
-          this.doc.fontSize(9.5).font('Helvetica-Bold').fillColor(this.textColor)
-            .text(String(value || 'N/A'), vX, ry, { width: cW - 150, lineBreak: false });
+          this._pdfText(label, lX, ry, { size: 9, width: 150, color: this.darkGray });
+          this._pdfText(String(value || 'N/A'), vX, ry, {
+            size: 9.5, bold: true, width: cW - 150, color: this.textColor,
+          });
           ry += gap;
         };
 
@@ -691,7 +707,7 @@ export class KhidmatPDFGenerator {
     return new Promise((resolve, reject) => {
       try {
         const chunks = [];
-        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this.doc = this._initDoc(new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false }));
         this._pageCount = 0;
 
         this.doc.on('data',  c  => chunks.push(c));
@@ -711,8 +727,9 @@ export class KhidmatPDFGenerator {
 
           // Person header
           this.doc.roundedRect(MARGIN, y, USABLE_WIDTH, 26, 4).fill(this.lightGray);
-          this.doc.fontSize(10).font('Helvetica-Bold').fillColor(this.primaryColor)
-            .text(`${person.name}  ·  ${person.phone}`, MARGIN + 10, y + 8, { width: USABLE_WIDTH - 20, lineBreak: false });
+          this._pdfText(`${person.name}  ·  ${person.phone}`, MARGIN + 10, y + 8, {
+            size: 10, bold: true, width: USABLE_WIDTH - 20, color: this.primaryColor,
+          });
           y += 32;
 
           // Mini table header
@@ -739,8 +756,11 @@ export class KhidmatPDFGenerator {
             x = MARGIN;
             cells.forEach((cell, i) => {
               this.doc.rect(x, y, miniCols[i], ROW_H).strokeColor(this.midGray).lineWidth(0.3).stroke();
-              this.doc.fontSize(7).font('Helvetica').fillColor(this.textColor)
-                .text(cell, x + 4, y + 8, { width: miniCols[i] - 8, lineBreak: false });
+              this._pdfText(cell, x + 4, y + 8, {
+                size: 7,
+                width: miniCols[i] - 8,
+                color: this.textColor,
+              });
               x += miniCols[i];
             });
             y += ROW_H;
@@ -777,7 +797,7 @@ export class KhidmatPDFGenerator {
     return new Promise((resolve, reject) => {
       try {
         const chunks = [];
-        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this.doc = this._initDoc(new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false }));
         this._pageCount = 0;
 
         this.doc.on('data',  c  => chunks.push(c));

@@ -34,7 +34,7 @@ const CategoryGridView = ({ categories, onEdit, onDelete, onToggleStatus }) => {
                     {category.name}
                   </h4>
                   {category.nameUrdu && (
-                    <p className="text-xs text-gray-600 truncate mt-0.5" dir="rtl">
+                    <p className="text-xs text-gray-600 truncate mt-0.5 font-urdu" dir="rtl">
                       {category.nameUrdu}
                     </p>
                   )}

@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { registerPdfFonts, writePdfText } from '../../utils/pdfFonts.js';
 
 const A4_HEIGHT    = 841.89;
 const A4_WIDTH     = 595.28;
@@ -46,6 +47,15 @@ export class PDFReportGenerator {
   _formatPayment(m) {
     const map = { BANK_TRANSFER: 'Bank', CARD: 'Card', CASH: 'Cash', UPI: 'UPI', CHEQUE: 'Cheque' };
     return map[m] || m || 'Cash';
+  }
+
+  _initDoc(doc) {
+    registerPdfFonts(doc);
+    return doc;
+  }
+
+  _pdfText(text, x, y, opts = {}) {
+    return writePdfText(this.doc, text, x, y, opts);
   }
 
   _newPage() {
@@ -123,7 +133,7 @@ export class PDFReportGenerator {
 
   _drawTableRow(donation, y, rowIndex) {
     if (rowIndex % 2 === 0) this.doc.rect(MARGIN, y, USABLE_WIDTH, ROW_H).fill('#eef2ff');
-    const purpose = (donation.category && donation.category.name) || donation.purpose || 'General';
+    const purpose = (donation.category && (donation.category.nameUrdu || donation.category.name)) || donation.purpose || 'General';
     const cells = [
       this._truncate(this._formatDate(donation.date), 14),
       this._truncate(donation.donorName  || 'Anonymous', 22),
@@ -132,10 +142,14 @@ export class PDFReportGenerator {
       this._truncate(purpose, 16),
       this._formatPayment(donation.paymentMethod)
     ];
-    this.doc.fontSize(9).font('Helvetica').fillColor(this.textColor);
     let x = MARGIN;
     cells.forEach((cell, i) => {
-      this.doc.text(cell, x + 4, y + 7, { width: COL_WIDTHS[i] - 8, align: i === 3 ? 'right' : 'left', lineBreak: false });
+      this._pdfText(cell, x + 4, y + 7, {
+        size: 9,
+        width: COL_WIDTHS[i] - 8,
+        align: i === 3 ? 'right' : 'left',
+        color: this.textColor,
+      });
       x += COL_WIDTHS[i];
     });
     return y + ROW_H;
@@ -178,7 +192,7 @@ export class PDFReportGenerator {
   _drawCategoryBreakdown(donations, yStart, totalPages) {
     const map = new Map();
     donations.forEach(d => {
-      const cat = (d.category && d.category.name) || d.purpose || 'Uncategorized';
+      const cat = (d.category && (d.category.nameUrdu || d.category.name)) || d.purpose || 'Uncategorized';
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat).push(d);
     });
@@ -220,7 +234,12 @@ export class PDFReportGenerator {
       this.doc.fontSize(9).font('Helvetica').fillColor(this.textColor);
       let sx = MARGIN;
       row.forEach((cell, i) => {
-        this.doc.text(cell, sx + 4, y + 7, { width: sw[i] - 8, align: i > 0 ? 'right' : 'left', lineBreak: false });
+        this._pdfText(cell, sx + 4, y + 7, {
+          size: 9,
+          width: sw[i] - 8,
+          align: i > 0 ? 'right' : 'left',
+          color: this.textColor,
+        });
         sx += sw[i];
       });
       y += ROW_H;
@@ -261,7 +280,7 @@ export class PDFReportGenerator {
     return new Promise((resolve, reject) => {
       try {
         const chunks = [];
-        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this.doc = this._initDoc(new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false }));
         this._pageCount = 0;
         this.doc.on('data', c => chunks.push(c));
         this.doc.on('end',  () => resolve(Buffer.concat(chunks)));
@@ -301,7 +320,7 @@ export class PDFReportGenerator {
     return new Promise((resolve, reject) => {
       try {
         const chunks = [];
-        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this.doc = this._initDoc(new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false }));
         this._pageCount = 0;
         this.doc.on('data', c => chunks.push(c));
         this.doc.on('end',  () => resolve(Buffer.concat(chunks)));
@@ -336,7 +355,7 @@ export class PDFReportGenerator {
     return new Promise((resolve, reject) => {
       try {
         const chunks = [];
-        this.doc = new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false });
+        this.doc = this._initDoc(new PDFDocument({ margin: 0, size: 'A4', autoFirstPage: false }));
         this._pageCount = 0;
         this.doc.on('data', c => chunks.push(c));
         this.doc.on('end',  () => resolve(Buffer.concat(chunks)));

@@ -18,6 +18,7 @@ import {
 import { useKhidmat, STATUS_LABELS, STATUS_COLORS } from '../../context/KhidmatContext'
 import { useDonations } from '../../context/DonationContext'
 import { getCategoryUrdu } from '../../utils/categoryDisplay'
+import { urduClass } from '../../utils/urdu'
 
 // ─────────────────────────────────────────────
 // Portal dropdown hook (fixes overflow clipping)
@@ -93,7 +94,7 @@ const CategoryPill = ({ categoryId, categoryFromRecord }) => {
   const cat = activeCategories.find(c => c.id === categoryId) || categoryFromRecord
   if (!cat) return <span className="text-xs text-slate-400">—</span>
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 ${urduClass(getCategoryUrdu(cat))}`} dir="rtl">
       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#3b82f6' }} />
       {getCategoryUrdu(cat)}
     </span>
@@ -548,7 +549,7 @@ const KhidmatTable = () => {
                           {new Date(record.date || record.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
                         <td className="px-4 py-3.5">
-                          <div className="font-semibold text-slate-800 text-sm leading-tight">{record.name}</div>
+                          <div className={`font-semibold text-slate-800 text-sm leading-tight ${urduClass(record.name)}`} dir={urduClass(record.name) ? 'rtl' : undefined}>{record.name}</div>
                           {record.address && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[140px]">{record.address}</div>}
                           <div className="text-xs text-slate-400 mt-0.5">{record.phone}</div>
                         </td>
@@ -598,7 +599,7 @@ const KhidmatTable = () => {
                   <button className="w-full text-left p-4 space-y-3" onClick={() => toggleRow(record.id)}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-slate-800 text-sm">{record.name}</p>
+                        <p className={`font-semibold text-slate-800 text-sm ${urduClass(record.name)}`} dir={urduClass(record.name) ? 'rtl' : undefined}>{record.name}</p>
                         <p className="text-xs text-slate-400 mt-0.5">{record.phone}</p>
                       </div>
                       <div className="flex items-center gap-2">

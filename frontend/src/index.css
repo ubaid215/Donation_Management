@@ -1,6 +1,17 @@
 @import "tailwindcss";
 
 /* =========================
+   URDU FONT (Jameel Noori Nastaleeq)
+========================= */
+@font-face {
+  font-family: 'Jameel Noori Nastaleeq';
+  src: url('/fonts/Jameel Noori Nastaleeq Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* =========================
    BASE STYLES
 ========================= */
 @layer base {
@@ -198,6 +209,11 @@
    ANIMATIONS
 ========================= */
 @layer utilities {
+  .font-urdu {
+    font-family: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', serif;
+    line-height: 1.6;
+  }
+
   @keyframes fadeIn {
     from {
       opacity: 0;

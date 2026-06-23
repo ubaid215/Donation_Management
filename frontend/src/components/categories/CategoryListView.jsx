@@ -55,7 +55,7 @@ const CategoryListView = ({
                         {category.name}
                       </div>
                       {category.nameUrdu && (
-                        <div className="text-xs text-gray-600 truncate" dir="rtl">
+                        <div className="text-xs text-gray-600 truncate font-urdu" dir="rtl">
                           {category.nameUrdu}
                         </div>
                       )}

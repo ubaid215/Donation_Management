@@ -13,6 +13,7 @@ import { useKhidmat, STATUS_LABELS, STATUS_COLORS } from '../../context/KhidmatC
 import KhidmatFilter from './KhidmatFilter'
 import BulkReminderBar from './BulkReminderBar'
 import { getCategoryUrdu } from '../../utils/categoryDisplay'
+import { urduClass } from '../../utils/urdu'
 import {
   getKhidmatByPerson,
   downloadKhidmatByPersonReport,
@@ -164,7 +165,7 @@ const KhidmatByPerson = () => {
                       <User size={16} className="text-blue-700" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800">{person.name}</p>
+                      <p className={`text-sm font-semibold text-slate-800 ${urduClass(person.name)}`} dir={urduClass(person.name) ? 'rtl' : undefined}>{person.name}</p>
                       <div className="flex flex-wrap items-center gap-3 mt-0.5">
                         <span className="text-xs text-slate-500 flex items-center gap-1">
                           <Phone size={11} /> {person.phone}
@@ -220,7 +221,7 @@ const KhidmatByPerson = () => {
                               style={{ backgroundColor: record.category?.color || '#3b82f6' }}
                             />
                             <div className="flex-1 min-w-[140px]">
-                              <p className="text-sm font-semibold text-slate-800" dir="rtl">
+                              <p className={`text-sm font-semibold text-slate-800 font-urdu`} dir="rtl">
                                 {getCategoryUrdu(record.category)}
                               </p>
                               <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">

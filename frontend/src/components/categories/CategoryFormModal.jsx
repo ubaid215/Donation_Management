@@ -88,7 +88,7 @@ const CategoryFormModal = ({
                 <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1 md:mb-2">
                   Category Name (Urdu)
                 </label>
-                <div className="input text-xs md:text-sm py-2 bg-gray-50 text-gray-800" dir="rtl" style={{ fontFamily: 'inherit' }}>
+                <div className="input text-xs md:text-sm py-2 bg-gray-50 text-gray-800 font-urdu" dir="rtl">
                   {formData.nameUrdu || category?.nameUrdu}
                 </div>
               </div>

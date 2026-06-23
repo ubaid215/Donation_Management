@@ -13,6 +13,7 @@ import {
 import { useKhidmat, STATUS_COLORS } from '../../context/KhidmatContext'
 import { useDonations } from '../../context/DonationContext'
 import { getCategoryUrdu } from '../../utils/categoryDisplay'
+import { urduClass } from '../../utils/urdu'
 
 // ─────────────────────────────────────────────
 // Status options
@@ -94,6 +95,7 @@ const KhidmatFilter = () => {
   const selectedCatName = local.categoryId
     ? getCategoryUrdu(activeCategories.find(c => c.id === local.categoryId)) || 'Category'
     : 'All categories'
+  const selectedCatUrduClass = urduClass(selectedCatName)
 
   return (
     <div className="space-y-3">
@@ -197,7 +199,7 @@ const KhidmatFilter = () => {
                   onClick={() => setCatOpen(p => !p)}
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-slate-200 text-sm bg-white hover:border-blue-300 transition-all"
                 >
-                  <span className={local.categoryId ? 'text-slate-800' : 'text-slate-400'}>
+                  <span className={`${local.categoryId ? 'text-slate-800' : 'text-slate-400'} ${selectedCatUrduClass}`} dir={local.categoryId ? 'rtl' : undefined}>
                     {selectedCatName}
                   </span>
                   <ChevronDown size={14} className={`text-slate-400 transition-transform duration-150 ${catOpen ? 'rotate-180' : ''}`} />
@@ -226,7 +228,7 @@ const KhidmatFilter = () => {
                           style={{ backgroundColor: cat.color || '#3b82f6' }}
                         />
                         <span className="flex flex-col">
-                          <span>{getCategoryUrdu(cat)}</span>
+                          <span className={urduClass(getCategoryUrdu(cat))} dir="rtl">{getCategoryUrdu(cat)}</span>
                           {cat.nameUrdu && cat.name !== cat.nameUrdu && (
                             <span className="text-[10px] text-slate-400 font-normal">{cat.name}</span>
                           )}

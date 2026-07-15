@@ -1,3 +1,7 @@
+// ============================================================
+// server.js - Add scheduler initialization
+// ============================================================
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -20,12 +24,15 @@ import khidmatRoutes from './features/khidmatRecord/khidmat.routes.js';
 import whatsappTestRoutes from './features/whatsapp/whatsapp-test.route.js';
 import webhookRoutes from './routes/webhook.routes.js';
 
+// Import scheduler
+import { initScheduler } from './features/khidmatRecord/scheduler.service.js';
+
 // Import prisma for health check
 import prisma from './config/prisma.js'; 
 
 const app = express();
 
-// ========== MIDDLEWARE SETUP - MUST COME FIRST ==========
+// ========== MIDDLEWARE SETUP ==========
 
 // Security headers
 app.use(helmet({
@@ -42,7 +49,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS configuration - APPLIED TO ALL ROUTES INCLUDING WEBHOOKS
+// CORS configuration
 app.use(cors({
   origin: config.security.corsOrigin,
   credentials: true,
@@ -50,7 +57,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Handle preflight requests
 app.options('*', cors());
 
 // Rate limiting
@@ -114,10 +120,8 @@ app.use((req, res, next) => {
 
 // ========== ROUTES ==========
 
-// Webhook routes - NOW WITH CORS APPLIED
+// Webhook routes
 app.use('/api/webhook', webhookRoutes);
-
-// Also keep the original path for Meta's webhook calls (no CORS needed)
 app.use('/webhook', webhookRoutes);
 
 // Health check endpoint
@@ -158,7 +162,8 @@ app.get('/api', (req, res) => {
       donations: '/api/donations',
       admin: '/api/admin',
       reports: '/api/reports',
-      audit: '/api/audit'
+      audit: '/api/audit',
+      khidmat: '/api/khidmat'
     }
   });
 });
@@ -226,9 +231,14 @@ app.use((error, req, res, next) => {
 
 // ========== SERVER STARTUP ==========
 
+let schedulerJobs = null;
+
 const startServer = async () => {
   try {
     await connectPrisma();
+    
+    // Initialize scheduler
+    schedulerJobs = initScheduler();
     
     const server = app.listen(config.port, () => {
       console.log(`🚀 Server is running on port ${config.port}`);
@@ -242,6 +252,13 @@ const startServer = async () => {
     
     const shutdown = async (signal) => {
       console.log(`\n${signal} received. Starting graceful shutdown...`);
+      
+      // Stop scheduler
+      if (schedulerJobs) {
+        console.log('⏰ Stopping scheduler...');
+        schedulerJobs.mainJob.stop();
+        schedulerJobs.healthJob.stop();
+      }
       
       server.close(async () => {
         console.log('HTTP server closed');

@@ -1,11 +1,5 @@
 // ============================================================
-// schema.prisma — Donation Management System
-// Updated: KhidmatRecord installment tracking + Bilingual support
-//   - amount        = total pledged (unchanged)
-//   - receivedAmount = running total collected (new)
-//   - KhidmatPayment = individual installment log (new model)
-//   - New audit actions: KHIDMAT_PAYMENT_ADDED
-//   - Added nameUrdu to KhidmatRecord for bilingual support
+// prisma/schema.prisma — Fixed with proper relation syntax
 // ============================================================
 
 generator client {
@@ -35,15 +29,27 @@ enum PaymentMethod {
   CHEQUE
 }
 
-// Status of a KhidmatRecord — drives WhatsApp message template
 enum KhidmatStatus {
-  COMPLETED    // Fully paid / service complete
-  PARTIAL      // Partially paid — receivedAmount < amount
-  RECORD_ONLY  // Just recording — no payment yet
+  COMPLETED
+  PARTIAL
+  RECORD_ONLY
+}
+
+enum ScheduleFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }
 
 enum AuditAction {
-  // ── Donation ──────────────────────────────
   DONATION_CREATED
   DONATION_EMAIL_SENT
   EMAIL_SENT
@@ -58,8 +64,6 @@ enum AuditAction {
   DONATION_DELETED
   DONATION_RESTORED
   WHATSAPP_SKIPPED
-
-  // ── Auth / User ───────────────────────────
   OPERATOR_LOGIN
   ADMIN_LOGIN
   EMAIL_CHANGED
@@ -68,11 +72,7 @@ enum AuditAction {
   PASSWORD_CHANGED
   PASSWORD_RESET_REQUESTED
   PASSWORD_RESET_COMPLETED
-
-  // ── Reports ───────────────────────────────
   PDF_EXPORTED
-
-  // ── KhidmatRecord ─────────────────────────
   KHIDMAT_CREATED
   KHIDMAT_UPDATED
   KHIDMAT_DELETED
@@ -81,7 +81,12 @@ enum AuditAction {
   KHIDMAT_WHATSAPP_FAILED
   KHIDMAT_WHATSAPP_SKIPPED
   KHIDMAT_PAYMENT_ADDED
-  KHIDMAT_BULK_REMINDER_SENT     
+  KHIDMAT_BULK_REMINDER_SENT
+  KHIDMAT_PERSON_WHATSAPP_SENT
+  REMINDER_SCHEDULE_CREATED
+  REMINDER_SCHEDULE_UPDATED
+  REMINDER_SCHEDULE_DELETED
+  REMINDER_SCHEDULE_RUN
 }
 
 // ─────────────────────────────────────────────
@@ -104,11 +109,12 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  donationsCreated Donation[]        @relation("OperatorDonations")
-  donationsDeleted Donation[]        @relation("DeletedDonations")
-  khidmatCreated   KhidmatRecord[]   @relation("KhidmatOperator")
-  khidmatDeleted   KhidmatRecord[]   @relation("KhidmatDeletedBy")
-  auditLogs        AuditLog[]
+  donationsCreated       Donation[]              @relation("OperatorDonations")
+  donationsDeleted       Donation[]              @relation("DeletedDonations")
+  khidmatCreated         KhidmatRecord[]         @relation("KhidmatOperator")
+  khidmatDeleted         KhidmatRecord[]         @relation("KhidmatDeletedBy")
+  reminderSchedules      ReminderSchedule[]
+  auditLogs              AuditLog[]
 
   @@map("users")
 }
@@ -165,7 +171,7 @@ model Donation {
 model DonationCategory {
   id          String   @id @default(uuid())
   name        String   @unique
-  nameUrdu    String?  // Auto-translated from name (en → ur)
+  nameUrdu    String?
   description String?
   icon        String?  @default("Tag")
   color       String?  @default("#3b82f6")
@@ -179,31 +185,21 @@ model DonationCategory {
   @@map("donation_categories")
 }
 
-// ─────────────────────────────────────────────
-// KhidmatRecord - Updated with bilingual support
-// ─────────────────────────────────────────────
 model KhidmatRecord {
   id String @id @default(uuid())
 
-  // ── Person ────────────────────────────────
-  name     String   // English name
-  nameUrdu String?  // 🔥 NEW - Urdu translation
+  name     String
+  nameUrdu String?
   phone    String
   address  String?
 
-  // ── Financials ────────────────────────────
-  // amount         = total pledged / committed
-  // receivedAmount = sum of all installments collected so far
-  // remainingAmount is always computed: amount - receivedAmount
   amount         Decimal @db.Decimal(10, 2)
   receivedAmount Decimal @db.Decimal(10, 2) @default(0)
 
-  // ── Service ───────────────────────────────
   categoryId String
   status     KhidmatStatus @default(RECORD_ONLY)
   notes      String?
 
-  // ── WhatsApp ──────────────────────────────
   whatsappSent            Boolean   @default(false)
   whatsappSentAt          DateTime?
   whatsappMessageId       String?   @unique
@@ -211,43 +207,37 @@ model KhidmatRecord {
   whatsappStatus          String?   @default("PENDING")
   whatsappStatusUpdatedAt DateTime?
 
-  // ── Soft-delete ───────────────────────────
   isDeleted      Boolean   @default(false)
   deletedAt      DateTime?
   deletionReason String?
 
-  // ── Meta ──────────────────────────────────
   operatorId String
   deletedBy  String?
   date       DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  // ── Relations ─────────────────────────────
   operator      User              @relation("KhidmatOperator",  fields: [operatorId], references: [id])
   deletedByUser User?             @relation("KhidmatDeletedBy", fields: [deletedBy],  references: [id])
   category      DonationCategory  @relation(fields: [categoryId], references: [id])
-  payments      KhidmatPayment[]  // installment history
+  payments      KhidmatPayment[]
+  reminderRecords ReminderScheduleRecord[]
 
   @@map("khidmat_records")
   @@index([operatorId])
   @@index([categoryId])
   @@index([status])
   @@index([deletedBy])
+  @@index([phone])
 }
 
-// ─────────────────────────────────────────────
-// KhidmatPayment
-// Each row = one installment added to a KhidmatRecord.
-// receivedAmount on the parent is always the SUM of these.
-// ─────────────────────────────────────────────
 model KhidmatPayment {
   id       String  @id @default(uuid())
   recordId String
 
-  amount  Decimal  @db.Decimal(10, 2)   // this installment amount
-  notes   String?                        // optional note e.g. "received via bank"
-  paidAt  DateTime @default(now())       // when this payment was received
+  amount  Decimal  @db.Decimal(10, 2)
+  notes   String?
+  paidAt  DateTime @default(now())
 
   createdAt DateTime @default(now())
 
@@ -256,6 +246,50 @@ model KhidmatPayment {
   @@map("khidmat_payments")
   @@index([recordId])
   @@index([paidAt])
+}
+
+model ReminderSchedule {
+  id           String   @id @default(uuid())
+  name         String
+  frequency    ScheduleFrequency @default(DAILY)
+  time         String?  @default("09:00")  // HH:mm format
+  nextRunAt    DateTime
+  lastRunAt    DateTime?
+  isActive     Boolean  @default(true)
+  createdBy    String
+
+  filterStatuses   KhidmatStatus[] @default([PARTIAL, RECORD_ONLY])
+  filterCategoryId String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  records       ReminderScheduleRecord[]
+  createdByUser User                     @relation(fields: [createdBy], references: [id])
+
+  @@map("reminder_schedules")
+  @@index([nextRunAt])
+  @@index([isActive])
+}
+
+model ReminderScheduleRecord {
+  id         String         @id @default(uuid())
+  scheduleId String
+  recordId   String
+  status     ReminderStatus @default(PENDING)
+  error      String?
+  sentAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schedule ReminderSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  record   KhidmatRecord    @relation(fields: [recordId], references: [id])
+
+  @@map("reminder_schedule_records")
+  @@index([scheduleId])
+  @@index([recordId])
+  @@index([status])
 }
 
 model AuditLog {

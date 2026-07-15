@@ -45,40 +45,37 @@ const fmt = (val) =>
 //   khidmat_partial    — vars: name, category, receivedAmount, totalAmount, remainingAmount
 //   khidmat_record     — vars: name, category
 // ─────────────────────────────────────────────
+// ─── Build template payload per status ──────────────────────
 const buildTemplatePayload = (record, categoryName) => {
   const totalAmount = parseFloat(record.amount.toString())
   const receivedAmount = parseFloat(record.receivedAmount.toString())
   const remainingAmount = totalAmount - receivedAmount
 
   switch (record.status) {
-
     case 'COMPLETED':
       return {
-        templateName: 'khidmat_completed',
+        templateName: 'khidmat_completed',  // Must exist in Meta
         components: [{
           type: 'body',
           parameters: [
-            { type: 'text', text: record.name },                          // {{1}} name
-            { type: 'text', text: `Rs ${fmt(totalAmount)}` },            // {{2}} payment amount
-            { type: 'text', text: categoryName },                         // {{3}} purpose
+            { type: 'text', text: record.name },
+            { type: 'text', text: `Rs ${fmt(totalAmount)}` },
+            { type: 'text', text: categoryName },
           ]
         }]
       }
 
     case 'PARTIAL':
-      // Template body example:
-      // "Assalaamu Alaikum {{1}}, your {{2}} khidmat payment of Rs {{3}}
-      //  has been received. Total pledged: Rs {{4}}. Remaining: Rs {{5}}."
       return {
-        templateName: 'khidmat_partial',
+        templateName: 'khidmat_partial',  // Must exist in Meta
         components: [{
           type: 'body',
           parameters: [
             { type: 'text', text: record.name },
             { type: 'text', text: categoryName },
-            { type: 'text', text: `Rs ${fmt(receivedAmount)}` },   // {{3}} received so far
-            { type: 'text', text: `Rs ${fmt(totalAmount)}` },      // {{4}} total pledged
-            { type: 'text', text: `Rs ${fmt(remainingAmount)}` }   // {{5}} remaining
+            { type: 'text', text: `Rs ${fmt(receivedAmount)}` },
+            { type: 'text', text: `Rs ${fmt(totalAmount)}` },
+            { type: 'text', text: `Rs ${fmt(remainingAmount)}` }
           ]
         }]
       }
@@ -86,12 +83,13 @@ const buildTemplatePayload = (record, categoryName) => {
     case 'RECORD_ONLY':
     default:
       return {
-        templateName: 'khidmat_record',
+        templateName: 'khidmat_reminder_pending',  // Changed from khidmat_record
         components: [{
           type: 'body',
           parameters: [
             { type: 'text', text: record.name },
-            { type: 'text', text: categoryName }
+            { type: 'text', text: categoryName },
+            { type: 'text', text: `Rs ${fmt(totalAmount)}` },
           ]
         }]
       }

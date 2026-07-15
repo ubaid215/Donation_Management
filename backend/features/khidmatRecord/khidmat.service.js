@@ -1,10 +1,12 @@
 // ============================================================
 // features/khidmatRecord/khidmat.service.js
 // Backend service — full version with installments + analytics
+// Updated with bilingual support (nameUrdu)
 // ============================================================
 
 import prisma from '../../config/prisma.js'
 import { createAuditLog } from '../../utils/auditLogger.js'
+import { translateToUrdu } from '../../utils/translate.js'
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -35,66 +37,91 @@ const deriveStatus = (totalAmount, receivedAmount, explicitStatus) => {
 export class KhidmatRecordService {
 
   // ─────────────────────────────────────────────
-  // CREATE
+  // CREATE - Updated with bilingual support
   // ─────────────────────────────────────────────
-  async createRecord(data, userId, ipAddress = null) {
-    const record = await prisma.$transaction(async (tx) => {
-      const category = await tx.donationCategory.findUnique({ where: { id: data.categoryId } })
-      if (!category) throw new Error('Category not found')
-      if (!category.isActive) throw new Error('Selected category is not active')
-
-      const receivedAmount = parseFloat(data.receivedAmount ?? 0)
-      const totalAmount = parseFloat(data.amount)
-      const status = deriveStatus(totalAmount, receivedAmount, data.status)
-
-      const newRecord = await tx.khidmatRecord.create({
-        data: {
-          name: data.name,
-          phone: data.phone,
-          address: data.address || null,
-          amount: totalAmount,
-          receivedAmount: receivedAmount,
-          categoryId: data.categoryId,
-          status,
-          notes: data.notes || null,
-          date: data.date ? new Date(data.date) : new Date(),
-          operatorId: userId,
-        },
-        include: {
-          category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
-          operator: { select: { id: true, name: true } },
-          payments: true,
-        }
-      })
-
-      // Log initial payment as first installment if amount > 0
-      if (receivedAmount > 0) {
-        await tx.khidmatPayment.create({
-          data: {
-            recordId: newRecord.id,
-            amount: receivedAmount,
-            notes: 'Initial payment on record creation',
-            paidAt: newRecord.date,
-          }
-        })
-      }
-
-      await createAuditLog({
-        action: 'KHIDMAT_CREATED',
-        userId,
-        userRole: 'OPERATOR',
-        entityType: 'KHIDMAT_RECORD',
-        entityId: newRecord.id,
-        description: `Khidmat record created for "${data.name}" — pledged: ${totalAmount}, received: ${receivedAmount}`,
-        metadata: { name: data.name, phone: data.phone, amount: totalAmount, receivedAmount, status, categoryName: category.name },
-        ipAddress
-      })
-
-      return newRecord
-    })
-
-    return normalizeRecord(record)
+ 
+async createRecord(data, userId, ipAddress = null) {
+  // Get translation outside transaction
+  let nameUrdu = null;
+  if (data.name) {
+    try {
+      nameUrdu = await translateToUrdu(data.name, 2000);
+    } catch (error) {
+      console.warn('⚠️ Translation failed for name, using fallback:', error.message);
+      nameUrdu = data.name;
+    }
   }
+
+  const record = await prisma.$transaction(async (tx) => {
+    const category = await tx.donationCategory.findUnique({ 
+      where: { id: data.categoryId } 
+    });
+    
+    if (!category) throw new Error('Category not found');
+    if (!category.isActive) throw new Error('Selected category is not active');
+
+    const receivedAmount = parseFloat(data.receivedAmount ?? 0);
+    const totalAmount = parseFloat(data.amount);
+    const status = deriveStatus(totalAmount, receivedAmount, data.status);
+
+    const newRecord = await tx.khidmatRecord.create({
+      data: {
+        name: data.name,
+        nameUrdu: nameUrdu || data.nameUrdu || null,
+        phone: data.phone,
+        address: data.address || null,
+        amount: totalAmount,
+        receivedAmount: receivedAmount,
+        categoryId: data.categoryId,
+        status,
+        notes: data.notes || null,
+        date: data.date ? new Date(data.date) : new Date(),
+        operatorId: userId,
+      },
+      include: {
+        category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
+        operator: { select: { id: true, name: true } },
+        payments: true,
+      }
+    });
+
+    if (receivedAmount > 0) {
+      await tx.khidmatPayment.create({
+        data: {
+          recordId: newRecord.id,
+          amount: receivedAmount,
+          notes: 'Initial payment on record creation',
+          paidAt: newRecord.date,
+        }
+      });
+    }
+
+    await createAuditLog({
+      action: 'KHIDMAT_CREATED',
+      userId,
+      userRole: 'OPERATOR',
+      entityType: 'KHIDMAT_RECORD',
+      entityId: newRecord.id,
+      description: `Khidmat record created for "${data.name}" — pledged: ${totalAmount}, received: ${receivedAmount}`,
+      metadata: { 
+        name: data.name, 
+        nameUrdu: nameUrdu,
+        phone: data.phone, 
+        amount: totalAmount, 
+        receivedAmount, 
+        status, 
+        categoryName: category.name 
+      },
+      ipAddress
+    });
+
+    return newRecord;
+  }, {
+    timeout: 30000, // Increase transaction timeout
+  });
+
+  return normalizeRecord(record);
+}
 
   // ─────────────────────────────────────────────
   // ADD PAYMENT (installment)
@@ -179,7 +206,7 @@ export class KhidmatRecordService {
     const record = await prisma.khidmatRecord.findUnique({
       where: { id: recordId },
       select: {
-        id: true, name: true, amount: true,
+        id: true, name: true, nameUrdu: true, amount: true,
         receivedAmount: true, status: true,
         payments: { orderBy: { paidAt: 'desc' } }
       }
@@ -190,6 +217,7 @@ export class KhidmatRecordService {
     return {
       recordId: record.id,
       name: record.name,
+      nameUrdu: record.nameUrdu,
       totalAmount: toNum(record.amount),
       receivedAmount: toNum(record.receivedAmount),
       remainingAmount: toNum(record.amount) - toNum(record.receivedAmount),
@@ -225,6 +253,7 @@ export class KhidmatRecordService {
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
+          { nameUrdu: { contains: search, mode: 'insensitive' } }, // 🔥 Search in Urdu too
           { phone: { contains: search, mode: 'insensitive' } },
           { address: { contains: search, mode: 'insensitive' } },
           { notes: { contains: search, mode: 'insensitive' } }
@@ -254,7 +283,7 @@ export class KhidmatRecordService {
   }
 
   // ─────────────────────────────────────────────
-  // GET GROUPED BY PERSON  (yearly / filtered view)
+  // GET GROUPED BY PERSON
   // ─────────────────────────────────────────────
   async getRecordsGroupedByPerson(filters = {}, requestingUser = null) {
     const {
@@ -284,6 +313,7 @@ export class KhidmatRecordService {
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
+          { nameUrdu: { contains: search, mode: 'insensitive' } }, // 🔥 Search in Urdu too
           { phone: { contains: search, mode: 'insensitive' } },
         ]
       })
@@ -309,6 +339,7 @@ export class KhidmatRecordService {
         personMap.set(phoneKey, {
           key: phoneKey,
           name: record.name,
+          nameUrdu: record.nameUrdu, // 🔥 Store Urdu name
           phone: record.phone,
           address: record.address,
           records: [],
@@ -326,6 +357,7 @@ export class KhidmatRecordService {
       person.recordCount += 1
       // Keep most recent name/address
       if (record.name) person.name = record.name
+      if (record.nameUrdu) person.nameUrdu = record.nameUrdu // 🔥 Update Urdu name
       if (record.address) person.address = record.address
     }
 
@@ -360,65 +392,85 @@ export class KhidmatRecordService {
   }
 
   // ─────────────────────────────────────────────
-  // UPDATE
+  // UPDATE - Updated with bilingual support
   // ─────────────────────────────────────────────
   async updateRecord(id, updateData, userId, userRole, ipAddress = null) {
-    const record = await prisma.$transaction(async (tx) => {
-      const existing = await tx.khidmatRecord.findUnique({ where: { id } })
-      if (!existing || existing.isDeleted) throw new Error('Record not found')
-      if (userRole === 'OPERATOR' && existing.operatorId !== userId) throw new Error('Access denied')
-
-      if (updateData.categoryId) {
-        const cat = await tx.donationCategory.findUnique({ where: { id: updateData.categoryId } })
-        if (!cat) throw new Error('Category not found')
-        if (!cat.isActive) throw new Error('Selected category is not active')
-      }
-
-      // Guard: new total amount must not be less than already received
-      const newTotal = updateData.amount ? parseFloat(updateData.amount) : toNum(existing.amount)
-      const curReceived = toNum(existing.receivedAmount)
-      if (curReceived > newTotal) {
-        throw new Error(
-          `Cannot reduce total to Rs ${newTotal} — already received Rs ${curReceived}`
-        )
-      }
-
-      // Re-derive status unless explicitly provided
-      if (!updateData.status) {
-        updateData.status = deriveStatus(newTotal, curReceived, null)
-      }
-
-      // ✅ ADD THIS — convert date string to Date object
-      if (updateData.date) {
-        updateData.date = new Date(updateData.date)
-      }
-
-      const updated = await tx.khidmatRecord.update({
-        where: { id },
-        data: updateData,
-        include: {
-          category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
-          operator: { select: { id: true, name: true } },
-          payments: { orderBy: { paidAt: 'desc' } }
-        }
-      })
-
-      await createAuditLog({
-        action: 'KHIDMAT_UPDATED', userId, userRole,
-        entityType: 'KHIDMAT_RECORD', entityId: id,
-        description: `Khidmat record for "${existing.name}" updated`,
-        metadata: {
-          updates: updateData,
-          previousValues: { name: existing.name, status: existing.status, amount: existing.amount.toString() }
-        },
-        ipAddress
-      })
-
-      return updated
-    })
-
-    return normalizeRecord(record)
+  // Get translation outside transaction if name is being updated
+  let nameUrdu = null;
+  if (updateData.name) {
+    try {
+      nameUrdu = await translateToUrdu(updateData.name, 2000);
+    } catch (error) {
+      console.warn('⚠️ Translation failed for name update:', error.message);
+      nameUrdu = updateData.name;
+    }
   }
+
+  const record = await prisma.$transaction(async (tx) => {
+    const existing = await tx.khidmatRecord.findUnique({ where: { id } });
+    if (!existing || existing.isDeleted) throw new Error('Record not found');
+    if (userRole === 'OPERATOR' && existing.operatorId !== userId) throw new Error('Access denied');
+
+    if (updateData.categoryId) {
+      const cat = await tx.donationCategory.findUnique({ where: { id: updateData.categoryId } });
+      if (!cat) throw new Error('Category not found');
+      if (!cat.isActive) throw new Error('Selected category is not active');
+    }
+
+    const newTotal = updateData.amount ? parseFloat(updateData.amount) : toNum(existing.amount);
+    const curReceived = toNum(existing.receivedAmount);
+    if (curReceived > newTotal) {
+      throw new Error(
+        `Cannot reduce total to Rs ${newTotal} — already received Rs ${curReceived}`
+      );
+    }
+
+    // Use translated name if available
+    if (updateData.name && updateData.name !== existing.name) {
+      updateData.nameUrdu = nameUrdu || updateData.name;
+    }
+
+    if (!updateData.status) {
+      updateData.status = deriveStatus(newTotal, curReceived, null);
+    }
+
+    if (updateData.date) {
+      updateData.date = new Date(updateData.date);
+    }
+
+    const updated = await tx.khidmatRecord.update({
+      where: { id },
+      data: updateData,
+      include: {
+        category: { select: { id: true, name: true, nameUrdu: true, icon: true, color: true } },
+        operator: { select: { id: true, name: true } },
+        payments: { orderBy: { paidAt: 'desc' } }
+      }
+    });
+
+    await createAuditLog({
+      action: 'KHIDMAT_UPDATED', userId, userRole,
+      entityType: 'KHIDMAT_RECORD', entityId: id,
+      description: `Khidmat record for "${existing.name}" updated`,
+      metadata: {
+        updates: updateData,
+        previousValues: { 
+          name: existing.name, 
+          nameUrdu: existing.nameUrdu,
+          status: existing.status, 
+          amount: existing.amount.toString() 
+        }
+      },
+      ipAddress
+    });
+
+    return updated;
+  }, {
+    timeout: 30000,
+  });
+
+  return normalizeRecord(record);
+}
 
   // ─────────────────────────────────────────────
   // SOFT DELETE
@@ -531,14 +583,7 @@ export class KhidmatRecordService {
   }
 
   // ─────────────────────────────────────────────
-  // ANALYTICS  (chart data)
-  //
-  // Returns:
-  //   monthlyTrend  — [ { month, pledged, received, remaining, count } ]
-  //   byCategory    — [ { categoryId, name, color, pledged, received, remaining, count, collectionRate } ]
-  //
-  // NOTE: Uses Prisma groupBy instead of $queryRaw to avoid
-  // template-literal conditional issues across DB drivers.
+  // ANALYTICS
   // ─────────────────────────────────────────────
   async getAnalytics(filters = {}) {
     const { startDate, endDate, categoryId } = filters
@@ -567,7 +612,7 @@ export class KhidmatRecordService {
     const categories = categoryIds.length > 0
       ? await prisma.donationCategory.findMany({
         where: { id: { in: categoryIds } },
-        select: { id: true, name: true, color: true, icon: true }
+        select: { id: true, name: true, nameUrdu: true, color: true, icon: true }
       })
       : []
 
@@ -578,6 +623,7 @@ export class KhidmatRecordService {
       return {
         categoryId: row.categoryId,
         name: catMap[row.categoryId]?.name || 'Unknown',
+        nameUrdu: catMap[row.categoryId]?.nameUrdu || null, // 🔥 Include Urdu name
         color: catMap[row.categoryId]?.color || '#3b82f6',
         icon: catMap[row.categoryId]?.icon || 'Tag',
         count: row._count,
@@ -588,8 +634,7 @@ export class KhidmatRecordService {
       }
     })
 
-    // ── Monthly trend (raw SQL — safest approach for date grouping) ──
-    // Build WHERE clauses as separate strings to avoid template issues
+    // ── Monthly trend ──────────────────────────────────────────
     const conditions = [`"isDeleted" = false`]
     const values = []
 

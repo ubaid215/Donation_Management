@@ -8,6 +8,18 @@ export class DonationCategoryService {
   }
 
   async createCategory(categoryData, userId, ipAddress = null) {
+    // Get translation outside transaction with shorter timeout
+    let nameUrdu = null;
+    if (categoryData.name) {
+      try {
+        // Use shorter timeout for translation
+        nameUrdu = await translateToUrdu(categoryData.name, 2000);
+      } catch (error) {
+        console.warn('⚠️ Translation failed, using English as fallback:', error.message);
+        nameUrdu = categoryData.name;
+      }
+    }
+
     const category = await this.prisma.$transaction(async (tx) => {
       // Check if category name already exists
       const existing = await tx.donationCategory.findUnique({
@@ -18,12 +30,10 @@ export class DonationCategoryService {
         throw new Error('Category with this name already exists');
       }
 
-      const nameUrdu = await translateToUrdu(categoryData.name);
-
       const newCategory = await tx.donationCategory.create({
         data: {
           name: categoryData.name,
-          nameUrdu,
+          nameUrdu: nameUrdu || categoryData.name,
           description: categoryData.description,
           icon: categoryData.icon || 'Tag',
           color: categoryData.color || '#3b82f6',
@@ -41,6 +51,7 @@ export class DonationCategoryService {
         description: `Donation category "${categoryData.name}" created`,
         metadata: {
           name: categoryData.name,
+          nameUrdu: nameUrdu,
           description: categoryData.description,
           icon: categoryData.icon,
           color: categoryData.color
@@ -49,6 +60,8 @@ export class DonationCategoryService {
       });
 
       return newCategory;
+    }, {
+      timeout: 30000, // Increase transaction timeout to 30 seconds
     });
 
     return category;
@@ -65,6 +78,7 @@ export class DonationCategoryService {
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
+          { nameUrdu: { contains: search, mode: 'insensitive' } },
           { description: { contains: search, mode: 'insensitive' } }
         ]
       })
@@ -92,7 +106,6 @@ export class DonationCategoryService {
 
     // Calculate total amount for each category
     const categoriesWithStats = categories.map(cat => {
-      // Convert Decimal amounts to numbers and sum them
       const totalAmount = cat.donations.reduce((sum, donation) => {
         const amount = donation.amount ? parseFloat(donation.amount.toString()) : 0;
         return sum + amount;
@@ -151,7 +164,6 @@ export class DonationCategoryService {
       throw new Error('Category not found');
     }
 
-    // Calculate total amount
     const totalAmount = category.donations.reduce((sum, donation) => {
       return sum + parseFloat(donation.amount.toString());
     }, 0);
@@ -180,7 +192,6 @@ export class DonationCategoryService {
       }
     });
 
-    // Calculate total amount for each category
     return categories.map(cat => {
       const totalAmount = cat.donations.reduce((sum, donation) => {
         return sum + parseFloat(donation.amount.toString());
@@ -201,111 +212,84 @@ export class DonationCategoryService {
     });
   }
 
-async updateCategory(id, updateData, userId, ipAddress = null) {
-  console.log("\n========== CATEGORY SERVICE: updateCategory ==========");
-  console.log("ID:", id);
-  console.log("Update Data:", updateData);
-  console.log("User ID:", userId);
-  console.log("IP Address:", ipAddress);
+  async updateCategory(id, updateData, userId, ipAddress = null) {
+    console.log("\n========== CATEGORY SERVICE: updateCategory ==========");
+    console.log("ID:", id);
+    console.log("Update Data:", updateData);
 
-  try {
-    const category = await this.prisma.$transaction(async (tx) => {
-      console.log("Checking if category exists...");
-
-      // Check if category exists
-      const existing = await tx.donationCategory.findUnique({
-        where: { id }
-      });
-
-      console.log("Existing Category:", existing);
-
-      if (!existing) {
-        console.error("Category not found:", id);
-        throw new Error("Category not found");
+    // Get translation outside transaction
+    let nameUrdu = null;
+    if (updateData.name) {
+      try {
+        nameUrdu = await translateToUrdu(updateData.name, 2000);
+      } catch (error) {
+        console.warn('⚠️ Translation failed for name update:', error.message);
+        nameUrdu = updateData.name;
       }
+    }
 
-      // If name is being updated, check for duplicates and re-translate
-      const updatePayload = { ...updateData };
-
-      if (updateData.name && updateData.name !== existing.name) {
-        console.log("Name is being updated.");
-        console.log("Checking for duplicate name:", updateData.name);
-
-        const duplicate = await tx.donationCategory.findUnique({
-          where: { name: updateData.name }
+    try {
+      const category = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.donationCategory.findUnique({
+          where: { id }
         });
 
-        console.log("Duplicate Result:", duplicate);
-
-        if (duplicate) {
-          console.error("Duplicate category found.");
-          throw new Error("Category with this name already exists");
+        if (!existing) {
+          throw new Error("Category not found");
         }
 
-        console.log("Translating name to Urdu...");
-        updatePayload.nameUrdu = await translateToUrdu(updateData.name);
-        console.log("Translated Name Urdu:", updatePayload.nameUrdu);
-      }
+        const updatePayload = { ...updateData };
 
-      console.log("Final Update Payload:", updatePayload);
+        // If name is being updated, check for duplicates and use translation
+        if (updateData.name && updateData.name !== existing.name) {
+          const duplicate = await tx.donationCategory.findUnique({
+            where: { name: updateData.name }
+          });
 
-      console.log("Updating category...");
-      const updatedCategory = await tx.donationCategory.update({
-        where: { id },
-        data: updatePayload
-      });
-
-      console.log("Updated Category:", updatedCategory);
-
-      console.log("Creating audit log...");
-      await createAuditLog({
-        action: "USER_UPDATED",
-        userId,
-        userRole: "ADMIN",
-        entityType: "DONATION_CATEGORY",
-        entityId: updatedCategory.id,
-        description: `Donation category "${updatedCategory.name}" updated`,
-        metadata: {
-          updates: updateData,
-          previousValues: {
-            name: existing.name,
-            description: existing.description,
-            isActive: existing.isActive
+          if (duplicate && duplicate.id !== id) {
+            throw new Error("Category with this name already exists");
           }
-        },
-        ipAddress
+
+          updatePayload.nameUrdu = nameUrdu || updateData.name;
+        }
+
+        const updatedCategory = await tx.donationCategory.update({
+          where: { id },
+          data: updatePayload
+        });
+
+        await createAuditLog({
+          action: "USER_UPDATED",
+          userId,
+          userRole: "ADMIN",
+          entityType: "DONATION_CATEGORY",
+          entityId: updatedCategory.id,
+          description: `Donation category "${updatedCategory.name}" updated`,
+          metadata: {
+            updates: updateData,
+            previousValues: {
+              name: existing.name,
+              description: existing.description,
+              isActive: existing.isActive
+            }
+          },
+          ipAddress
+        });
+
+        return updatedCategory;
+      }, {
+        timeout: 30000,
       });
 
-      console.log("Audit log created successfully.");
-
-      return updatedCategory;
-    });
-
-    console.log("Transaction completed successfully.");
-    return category;
-
-  } catch (error) {
-    console.error("========== updateCategory ERROR ==========");
-    console.error("Message:", error.message);
-    console.error("Stack:", error.stack);
-
-    if (error.code) {
-      console.error("Prisma Error Code:", error.code);
+      return category;
+    } catch (error) {
+      console.error("updateCategory ERROR:", error);
+      throw error;
     }
-
-    if (error.meta) {
-      console.error("Prisma Error Meta:", error.meta);
-    }
-
-    console.error("Full Error:", error);
-
-    throw error;
   }
-}
 
   async deleteCategory(id, userId, ipAddress = null) {
     const result = await this.prisma.$transaction(async (tx) => {
-      // Check if category exists
       const category = await tx.donationCategory.findUnique({
         where: { id },
         include: {
@@ -319,7 +303,6 @@ async updateCategory(id, updateData, userId, ipAddress = null) {
         throw new Error('Category not found');
       }
 
-      // Check if category has donations
       if (category._count.donations > 0) {
         throw new Error(
           `Cannot delete category with ${category._count.donations} associated donations. Please reassign or remove them first.`
@@ -330,7 +313,6 @@ async updateCategory(id, updateData, userId, ipAddress = null) {
         where: { id }
       });
 
-      // Log the action
       await createAuditLog({
         action: 'USER_UPDATED',
         userId,
@@ -348,6 +330,8 @@ async updateCategory(id, updateData, userId, ipAddress = null) {
       });
 
       return { deleted: true, category };
+    }, {
+      timeout: 30000,
     });
 
     return result;
@@ -368,7 +352,6 @@ async updateCategory(id, updateData, userId, ipAddress = null) {
         data: { isActive: !existing.isActive }
       });
 
-      // Log the action
       await createAuditLog({
         action: 'USER_UPDATED',
         userId,
@@ -384,6 +367,8 @@ async updateCategory(id, updateData, userId, ipAddress = null) {
       });
 
       return updatedCategory;
+    }, {
+      timeout: 30000,
     });
 
     return category;
@@ -447,7 +432,6 @@ async updateCategory(id, updateData, userId, ipAddress = null) {
 
       for (const donation of donations) {
         try {
-          // Find or create category based on purpose
           let category = await this.prisma.donationCategory.findFirst({
             where: {
               name: donation.purpose,
@@ -456,10 +440,18 @@ async updateCategory(id, updateData, userId, ipAddress = null) {
           });
 
           if (!category) {
-            // Create new category
+            // Get translation for new category
+            let nameUrdu = null;
+            try {
+              nameUrdu = await translateToUrdu(donation.purpose, 2000);
+            } catch (error) {
+              nameUrdu = donation.purpose;
+            }
+
             category = await this.prisma.donationCategory.create({
               data: {
                 name: donation.purpose,
+                nameUrdu: nameUrdu,
                 description: `Category for ${donation.purpose} donations`,
                 isActive: true
               }
@@ -467,7 +459,6 @@ async updateCategory(id, updateData, userId, ipAddress = null) {
             console.log(`Created new category: ${category.name}`);
           }
 
-          // Update donation with categoryId
           await this.prisma.donation.update({
             where: { id: donation.id },
             data: { categoryId: category.id }

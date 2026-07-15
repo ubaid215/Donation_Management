@@ -1,11 +1,10 @@
 // ============================================================
-// components/khidmat/KhidmatTable.jsx  — UPGRADED
-// Expandable rows with inline quick-pay form
-// No need to open a separate modal for adding payments
+// components/khidmat/KhidmatTable.jsx
+// Updated with bilingual support using utilities
 // ============================================================
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
-import ReactDOM from 'react-dom'
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import {
   MessageCircle, Pencil, Trash2, FileDown,
   ChevronLeft, ChevronRight, CheckCircle2,
@@ -13,44 +12,51 @@ import {
   RefreshCw, WifiOff, ChevronDown, PlusCircle,
   ChevronRight as ExpandIcon, Loader2, Check,
   DollarSign, Calendar, StickyNote, History,
-  ArrowRight
-} from 'lucide-react'
-import { useKhidmat, STATUS_LABELS, STATUS_COLORS } from '../../context/KhidmatContext'
-import { useDonations } from '../../context/DonationContext'
-import { getCategoryUrdu } from '../../utils/categoryDisplay'
-import { urduClass } from '../../utils/urdu'
+  MapPin, Phone
+} from 'lucide-react';
+import { useKhidmat, STATUS_LABELS, STATUS_COLORS } from '../../context/KhidmatContext';
+// Removed unused imports: useDonations, getCategoryUrdu, getCategoryBilingual, urduClass
+import BilingualName from './BilingualName.jsx';
+import CategoryPill from './CategoryPill.jsx';
 
 // ─────────────────────────────────────────────
 // Portal dropdown hook (fixes overflow clipping)
 // ─────────────────────────────────────────────
 const usePortalDropdown = () => {
-  const triggerRef = useRef(null)
-  const [open, setOpen]   = useState(false)
-  const [style, setStyle] = useState({})
+  const triggerRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [style, setStyle] = useState({});
 
   const recalc = useCallback(() => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    setStyle({ position: 'fixed', top: rect.bottom + 4, left: rect.left, zIndex: 9999 })
-  }, [])
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setStyle({ position: 'fixed', top: rect.bottom + 4, left: rect.left, zIndex: 9999 });
+  }, []);
 
   useEffect(() => {
-    if (!open) return
-    recalc()
-    window.addEventListener('scroll', recalc, true)
-    window.addEventListener('resize', recalc)
-    return () => { window.removeEventListener('scroll', recalc, true); window.removeEventListener('resize', recalc) }
-  }, [open, recalc])
+    if (!open) return;
+    recalc();
+    window.addEventListener('scroll', recalc, true);
+    window.addEventListener('resize', recalc);
+    return () => { 
+      window.removeEventListener('scroll', recalc, true); 
+      window.removeEventListener('resize', recalc);
+    };
+  }, [open, recalc]);
 
-  const toggle = () => { if (!open) recalc(); setOpen(p => !p) }
-  return { triggerRef, open, setOpen, style, toggle }
-}
+  const toggle = () => { 
+    if (!open) recalc(); 
+    setOpen(p => !p); 
+  };
+  
+  return { triggerRef, open, setOpen, style, toggle };
+};
 
 const STATUS_OPTS = [
   { value: 'COMPLETED',   label: 'Completed',   icon: CheckCircle2, colors: STATUS_COLORS.COMPLETED   },
   { value: 'PARTIAL',     label: 'Partial',     icon: AlertCircle,  colors: STATUS_COLORS.PARTIAL     },
   { value: 'RECORD_ONLY', label: 'Record Only', icon: FileText,     colors: STATUS_COLORS.RECORD_ONLY },
-]
+];
 
 // ── Skeleton row ──────────────────────────────
 const SkeletonRow = () => (
@@ -61,11 +67,11 @@ const SkeletonRow = () => (
       </td>
     ))}
   </tr>
-)
+);
 
 // ── Amount progress cell ──────────────────────
 const AmountProgress = ({ amount, receivedAmount, remainingAmount }) => {
-  const pct = amount > 0 ? Math.min(100, Math.round((receivedAmount / amount) * 100)) : 0
+  const pct = amount > 0 ? Math.min(100, Math.round((receivedAmount / amount) * 100)) : 0;
   return (
     <div className="min-w-[120px]">
       <div className="flex justify-between text-xs mb-1">
@@ -85,28 +91,15 @@ const AmountProgress = ({ amount, receivedAmount, remainingAmount }) => {
         <span>Left: Rs {remainingAmount?.toLocaleString('en-IN') ?? amount?.toLocaleString('en-IN')}</span>
       </div>
     </div>
-  )
-}
-
-// ── Category pill ─────────────────────────────
-const CategoryPill = ({ categoryId, categoryFromRecord }) => {
-  const { activeCategories } = useDonations()
-  const cat = activeCategories.find(c => c.id === categoryId) || categoryFromRecord
-  if (!cat) return <span className="text-xs text-slate-400">—</span>
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 ${urduClass(getCategoryUrdu(cat))}`} dir="rtl">
-      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color || '#3b82f6' }} />
-      {getCategoryUrdu(cat)}
-    </span>
-  )
-}
+  );
+};
 
 // ── Status dropdown (portalled) ───────────────
 const StatusDropdown = ({ recordId, currentStatus }) => {
-  const { quickUpdateStatus, updatingStatus } = useKhidmat()
-  const { triggerRef, open, setOpen, style, toggle } = usePortalDropdown()
-  const isUpdating = updatingStatus[recordId]
-  const c = STATUS_COLORS[currentStatus] || STATUS_COLORS.RECORD_ONLY
+  const { quickUpdateStatus, updatingStatus } = useKhidmat();
+  const { triggerRef, open, setOpen, style, toggle } = usePortalDropdown();
+  const isUpdating = updatingStatus[recordId];
+  const c = STATUS_COLORS[currentStatus] || STATUS_COLORS.RECORD_ONLY;
 
   return (
     <div className="relative inline-block">
@@ -123,29 +116,30 @@ const StatusDropdown = ({ recordId, currentStatus }) => {
           <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
           <div style={style} className="bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden min-w-[148px]">
             {STATUS_OPTS.map(opt => {
-              const Icon = opt.icon; const isCurrent = opt.value === currentStatus
+              const Icon = opt.icon; 
+              const isCurrent = opt.value === currentStatus;
               return (
                 <button key={opt.value}
-                  onClick={() => { if (!isCurrent) quickUpdateStatus(recordId, opt.value); setOpen(false) }}
+                  onClick={() => { if (!isCurrent) quickUpdateStatus(recordId, opt.value); setOpen(false); }}
                   className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors
                     ${isCurrent ? `${opt.colors.bg} ${opt.colors.text} cursor-default` : 'hover:bg-slate-50 text-slate-600'}`}>
                   <Icon size={13} />{opt.label}
                   {isCurrent && <span className="ml-auto text-[10px] opacity-60">Current</span>}
                 </button>
-              )
+              );
             })}
           </div>
         </>,
         document.body
       )}
     </div>
-  )
-}
+  );
+};
 
 // ── WhatsApp button ───────────────────────────
 const WhatsAppButton = ({ record }) => {
-  const { sendWhatsApp, sendingWhatsApp } = useKhidmat()
-  const isSending = sendingWhatsApp[record.id]
+  const { sendWhatsApp, sendingWhatsApp } = useKhidmat();
+  const isSending = sendingWhatsApp[record.id];
 
   return (
     <button onClick={() => sendWhatsApp(record.id)} disabled={isSending}
@@ -162,28 +156,28 @@ const WhatsAppButton = ({ record }) => {
         <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white" />
       )}
     </button>
-  )
-}
+  );
+};
 
 // ── Row actions (portalled) ───────────────────
 const RowActions = ({ record }) => {
-  const { openEditForm, deleteRecord, downloadReceipt } = useKhidmat()
-  const { triggerRef, open, setOpen, toggle } = usePortalDropdown()
-  const [confirming, setConfirming] = useState(false)
-  const [menuStyle,  setMenuStyle]  = useState({})
+  const { openEditForm, deleteRecord, downloadReceipt } = useKhidmat();
+  const { triggerRef, open, setOpen, toggle } = usePortalDropdown();
+  const [confirming, setConfirming] = useState(false);
+  const [menuStyle, setMenuStyle] = useState({});
 
   const calcStyle = useCallback(() => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    setMenuStyle({ position: 'fixed', top: rect.bottom + 4, right: window.innerWidth - rect.right, zIndex: 9999 })
-  }, [triggerRef])
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setMenuStyle({ position: 'fixed', top: rect.bottom + 4, right: window.innerWidth - rect.right, zIndex: 9999 });
+  }, [triggerRef]);
 
-  const handleToggle = () => { calcStyle(); toggle(); setConfirming(false) }
+  const handleToggle = () => { calcStyle(); toggle(); setConfirming(false); };
   const handleDelete = async () => {
-    if (!confirming) { setConfirming(true); return }
-    setOpen(false); setConfirming(false)
-    await deleteRecord(record.id)
-  }
+    if (!confirming) { setConfirming(true); return; }
+    setOpen(false); setConfirming(false);
+    await deleteRecord(record.id);
+  };
 
   return (
     <div className="relative inline-block">
@@ -194,13 +188,13 @@ const RowActions = ({ record }) => {
 
       {open && ReactDOM.createPortal(
         <>
-          <div className="fixed inset-0 z-[9998]" onClick={() => { setOpen(false); setConfirming(false) }} />
+          <div className="fixed inset-0 z-[9998]" onClick={() => { setOpen(false); setConfirming(false); }} />
           <div style={menuStyle} className="bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden min-w-[170px]">
-            <button onClick={() => { openEditForm(record); setOpen(false) }}
+            <button onClick={() => { openEditForm(record); setOpen(false); }}
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
               <Pencil size={14} /> Edit Record
             </button>
-            <button onClick={() => { downloadReceipt(record.id, record.name); setOpen(false) }}
+            <button onClick={() => { downloadReceipt(record.id, record.name); setOpen(false); }}
               className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
               <FileDown size={14} /> Download Receipt
             </button>
@@ -215,49 +209,47 @@ const RowActions = ({ record }) => {
         document.body
       )}
     </div>
-  )
-}
+  );
+};
 
-// ─────────────────────────────────────────────
-// INLINE QUICK-PAY FORM (shown in expanded row)
-// ─────────────────────────────────────────────
+// ── INLINE QUICK-PAY FORM ─────────────────────
 const QuickPayForm = ({ record, onSuccess, onCancel }) => {
-  const { addPayment } = useKhidmat()
-  const [amount,   setAmount]   = useState('')
-  const [notes,    setNotes]    = useState('')
-  const [date,     setDate]     = useState(new Date().toISOString().split('T')[0])
-  const [saving,   setSaving]   = useState(false)
-  const [error,    setError]    = useState('')
-  const [success,  setSuccess]  = useState(false)
-  const amountRef = useRef(null)
+  const { addPayment } = useKhidmat();
+  const [amount, setAmount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const amountRef = useRef(null);
 
-  useEffect(() => { amountRef.current?.focus() }, [])
+  useEffect(() => { amountRef.current?.focus(); }, []);
 
-  const remaining = record.remainingAmount ?? (record.amount - record.receivedAmount)
+  const remaining = record.remainingAmount ?? (record.amount - record.receivedAmount);
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    const val = parseFloat(amount)
-    if (!val || val <= 0) { setError('Enter a valid amount'); return }
-    if (val > remaining) { setError(`Cannot exceed remaining Rs ${remaining.toLocaleString('en-IN')}`); return }
+    e.preventDefault();
+    const val = parseFloat(amount);
+    if (!val || val <= 0) { setError('Enter a valid amount'); return; }
+    if (val > remaining) { setError(`Cannot exceed remaining Rs ${remaining.toLocaleString('en-IN')}`); return; }
 
-    setSaving(true); setError('')
+    setSaving(true); setError('');
     try {
-      await addPayment(record.id, { amount: val, notes, paidAt: date })
-      setSuccess(true)
-      setTimeout(() => onSuccess?.(), 900)
+      await addPayment(record.id, { amount: val, notes, paidAt: date });
+      setSuccess(true);
+      setTimeout(() => onSuccess?.(), 900);
     } catch (err) {
-      setError(err.message || 'Payment failed')
+      setError(err.message || 'Payment failed');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const quickAmounts = [
     remaining,
     Math.round(remaining * 0.5),
     Math.round(remaining * 0.25),
-  ].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).slice(0, 3)
+  ].filter((v, i, arr) => v > 0 && arr.indexOf(v) === i).slice(0, 3);
 
   if (success) return (
     <div className="flex items-center justify-center gap-2 py-4 text-emerald-600 font-semibold text-sm">
@@ -266,13 +258,12 @@ const QuickPayForm = ({ record, onSuccess, onCancel }) => {
       </div>
       Payment recorded!
     </div>
-  )
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Add Payment</p>
 
-      {/* Quick amount chips */}
       {quickAmounts.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           <span className="text-[10px] text-slate-400 self-center">Quick:</span>
@@ -288,14 +279,13 @@ const QuickPayForm = ({ record, onSuccess, onCancel }) => {
         </div>
       )}
 
-      {/* Amount + Date */}
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
             <DollarSign size={10} /> Amount (Rs)
           </label>
           <input ref={amountRef} type="number" min="1" max={remaining} step="0.01"
-            value={amount} onChange={e => { setAmount(e.target.value); setError('') }}
+            value={amount} onChange={e => { setAmount(e.target.value); setError(''); }}
             placeholder={`Max Rs ${remaining.toLocaleString('en-IN')}`}
             className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-800
                        focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent
@@ -311,7 +301,6 @@ const QuickPayForm = ({ record, onSuccess, onCancel }) => {
         </div>
       </div>
 
-      {/* Notes */}
       <div>
         <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-1">
           <StickyNote size={10} /> Notes (optional)
@@ -329,7 +318,6 @@ const QuickPayForm = ({ record, onSuccess, onCancel }) => {
         </p>
       )}
 
-      {/* Actions */}
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel}
           className="px-3 py-2 rounded-xl border border-slate-200 text-slate-500 text-xs font-medium hover:bg-slate-50 transition-colors">
@@ -342,39 +330,36 @@ const QuickPayForm = ({ record, onSuccess, onCancel }) => {
         </button>
       </div>
     </form>
-  )
-}
+  );
+};
 
-// ─────────────────────────────────────────────
-// EXPANDED ROW PANEL
-// Shows payment history + quick-pay form
-// ─────────────────────────────────────────────
+// ── EXPANDED ROW PANEL ────────────────────────
 const ExpandedRow = ({ record, colSpan, onPaymentAdded }) => {
-  const { fetchRecords } = useKhidmat()
-  const [payments,  setPayments]  = useState(null)
-  const [loading,   setLoading]   = useState(true)
-  const [showForm,  setShowForm]  = useState(record.remainingAmount > 0)
+  const { fetchRecords } = useKhidmat();
+  const [payments, setPayments] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(record.remainingAmount > 0);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(`/api/khidmat/${record.id}/payments`)
-        const data = await res.json()
-        setPayments(data.payments || [])
+        const res = await fetch(`/api/khidmat/${record.id}/payments`);
+        const data = await res.json();
+        setPayments(data.payments || []);
       } catch {
-        setPayments([])
+        setPayments([]);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
-    load()
-  }, [record.id])
+    };
+    load();
+  }, [record.id]);
 
   const handlePaymentSuccess = () => {
-    setShowForm(false)
-    fetchRecords()
-    onPaymentAdded?.()
-  }
+    setShowForm(false);
+    fetchRecords();
+    onPaymentAdded?.();
+  };
 
   return (
     <tr className="bg-slate-50/80 border-b border-slate-200">
@@ -440,18 +425,19 @@ const ExpandedRow = ({ record, colSpan, onPaymentAdded }) => {
         </div>
       </td>
     </tr>
-  )
-}
+  );
+};
 
 // ── Pagination ────────────────────────────────
 const Pagination = () => {
-  const { pagination, goToPage, fetchRecords } = useKhidmat()
-  const { page, pages, total, limit } = pagination
-  if (!pages || pages <= 1) return null
-  const from = (page - 1) * limit + 1; const to = Math.min(page * limit, total)
-  const go = (p) => { goToPage(p); fetchRecords({ page: p }) }
-  const pageNums = []
-  for (let i = Math.max(1, page - 2); i <= Math.min(pages, page + 2); i++) pageNums.push(i)
+  const { pagination, goToPage, fetchRecords } = useKhidmat();
+  const { page, pages, total, limit } = pagination;
+  if (!pages || pages <= 1) return null;
+  const from = (page - 1) * limit + 1; 
+  const to = Math.min(page * limit, total);
+  const go = (p) => { goToPage(p); fetchRecords({ page: p }); };
+  const pageNums = [];
+  for (let i = Math.max(1, page - 2); i <= Math.min(pages, page + 2); i++) pageNums.push(i);
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-slate-50/60">
@@ -459,15 +445,15 @@ const Pagination = () => {
         Showing <strong className="text-slate-700">{from}–{to}</strong> of <strong className="text-slate-700">{total}</strong> records
       </span>
       <div className="flex items-center gap-1">
-        <PageBtn icon={<ChevronLeft size={14} />}  onClick={() => go(page - 1)} disabled={page <= 1} />
+        <PageBtn icon={<ChevronLeft size={14} />} onClick={() => go(page - 1)} disabled={page <= 1} />
         {page > 3 && <><PageBtn label="1" onClick={() => go(1)} /><span className="px-1 text-slate-400 text-xs">…</span></>}
         {pageNums.map(n => <PageBtn key={n} label={n} active={n === page} onClick={() => go(n)} />)}
         {page < pages - 2 && <><span className="px-1 text-slate-400 text-xs">…</span><PageBtn label={pages} onClick={() => go(pages)} /></>}
         <PageBtn icon={<ChevronRight size={14} />} onClick={() => go(page + 1)} disabled={page >= pages} />
       </div>
     </div>
-  )
-}
+  );
+};
 
 const PageBtn = ({ label, icon, active, onClick, disabled }) => (
   <button onClick={onClick} disabled={disabled}
@@ -477,24 +463,24 @@ const PageBtn = ({ label, icon, active, onClick, disabled }) => (
       ${!active && !disabled ? 'text-slate-600 hover:bg-slate-200 bg-white border border-slate-200' : ''}`}>
     {icon || label}
   </button>
-)
+);
 
 // ─────────────────────────────────────────────
 // MAIN TABLE
 // ─────────────────────────────────────────────
 const KhidmatTable = () => {
-  const { records, loading, error, fetchRecords } = useKhidmat()
-  const [expandedRows, setExpandedRows] = useState(new Set())
+  const { records, loading, error, fetchRecords } = useKhidmat();
+  const [expandedRows, setExpandedRows] = useState(new Set());
 
   const toggleRow = (id) => {
     setExpandedRows(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
-  const COLS = ['', 'Date', 'Name', 'Category', 'Amount / Progress', 'Status', 'WhatsApp', 'Actions']
+  const COLS = ['', 'Date', 'Name', 'Category', 'Amount / Progress', 'Status', 'WhatsApp', 'Actions'];
 
   if (!loading && error) return (
     <div className="flex flex-col items-center justify-center py-16 text-center px-4">
@@ -505,7 +491,7 @@ const KhidmatTable = () => {
         <RefreshCw size={14} /> Retry
       </button>
     </div>
-  )
+  );
 
   if (!loading && records.length === 0) return (
     <div className="flex flex-col items-center justify-center py-16 text-center px-4">
@@ -513,7 +499,7 @@ const KhidmatTable = () => {
       <p className="text-slate-600 font-semibold mb-1">No records found</p>
       <p className="text-slate-400 text-sm">Try adjusting your filters or create a new record.</p>
     </div>
-  )
+  );
 
   return (
     <div>
@@ -531,7 +517,7 @@ const KhidmatTable = () => {
             {loading
               ? Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)
               : records.map(record => {
-                  const isExpanded = expandedRows.has(record.id)
+                  const isExpanded = expandedRows.has(record.id);
                   return (
                     <React.Fragment key={record.id}>
                       <tr className={`border-b border-slate-100 transition-colors ${isExpanded ? 'bg-blue-50/30' : 'hover:bg-slate-50/60'}`}>
@@ -545,23 +531,66 @@ const KhidmatTable = () => {
                           </button>
                         </td>
 
+                        {/* Date */}
                         <td className="px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
-                          {new Date(record.date || record.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {new Date(record.date || record.createdAt).toLocaleDateString('en-GB', { 
+                            day: '2-digit', 
+                            month: 'short', 
+                            year: 'numeric' 
+                          })}
                         </td>
+
+                        {/* Name - with bilingual support */}
                         <td className="px-4 py-3.5">
-                          <div className={`font-semibold text-slate-800 text-sm leading-tight ${urduClass(record.name)}`} dir={urduClass(record.name) ? 'rtl' : undefined}>{record.name}</div>
-                          {record.address && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[140px]">{record.address}</div>}
-                          <div className="text-xs text-slate-400 mt-0.5">{record.phone}</div>
+                          <BilingualName 
+                            name={record.name} 
+                            nameUrdu={record.nameUrdu}
+                            showBoth={true}
+                          />
+                          {record.address && (
+                            <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[140px]">
+                              <MapPin size={10} className="inline mr-1" />
+                              {record.address}
+                            </div>
+                          )}
+                          <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                            <Phone size={10} />
+                            {record.phone}
+                          </div>
                         </td>
+
+                        {/* Category - with bilingual support */}
                         <td className="px-4 py-3.5">
-                          <CategoryPill categoryId={record.categoryId} categoryFromRecord={record.category} />
+                          <CategoryPill 
+                            categoryId={record.categoryId} 
+                            categoryFromRecord={record.category}
+                            showBoth={true}
+                          />
                         </td>
+
+                        {/* Amount / Progress */}
                         <td className="px-4 py-3.5">
-                          <AmountProgress amount={record.amount} receivedAmount={record.receivedAmount} remainingAmount={record.remainingAmount} />
+                          <AmountProgress 
+                            amount={record.amount} 
+                            receivedAmount={record.receivedAmount} 
+                            remainingAmount={record.remainingAmount} 
+                          />
                         </td>
-                        <td className="px-4 py-3.5"><StatusDropdown recordId={record.id} currentStatus={record.status} /></td>
-                        <td className="px-4 py-3.5"><WhatsAppButton record={record} /></td>
-                        <td className="px-4 py-3.5"><RowActions record={record} /></td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3.5">
+                          <StatusDropdown recordId={record.id} currentStatus={record.status} />
+                        </td>
+
+                        {/* WhatsApp */}
+                        <td className="px-4 py-3.5">
+                          <WhatsAppButton record={record} />
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3.5">
+                          <RowActions record={record} />
+                        </td>
                       </tr>
 
                       {/* Expanded panel */}
@@ -573,7 +602,7 @@ const KhidmatTable = () => {
                         />
                       )}
                     </React.Fragment>
-                  )
+                  );
                 })
             }
           </tbody>
@@ -591,7 +620,7 @@ const KhidmatTable = () => {
               </div>
             ))
           : records.map(record => {
-              const isExpanded = expandedRows.has(record.id)
+              const isExpanded = expandedRows.has(record.id);
               return (
                 <div key={record.id} className={`rounded-2xl border shadow-sm transition-all ${isExpanded ? 'border-blue-200 bg-blue-50/20' : 'border-slate-200 bg-white'}`}>
 
@@ -599,15 +628,30 @@ const KhidmatTable = () => {
                   <button className="w-full text-left p-4 space-y-3" onClick={() => toggleRow(record.id)}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className={`font-semibold text-slate-800 text-sm ${urduClass(record.name)}`} dir={urduClass(record.name) ? 'rtl' : undefined}>{record.name}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{record.phone}</p>
+                        <BilingualName 
+                          name={record.name} 
+                          nameUrdu={record.nameUrdu}
+                          showBoth={true}
+                        />
+                        <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                          <Phone size={10} />
+                          {record.phone}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CategoryPill categoryId={record.categoryId} categoryFromRecord={record.category} />
+                        <CategoryPill 
+                          categoryId={record.categoryId} 
+                          categoryFromRecord={record.category}
+                          showBoth={false}
+                        />
                         <ExpandIcon size={14} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                       </div>
                     </div>
-                    <AmountProgress amount={record.amount} receivedAmount={record.receivedAmount} remainingAmount={record.remainingAmount} />
+                    <AmountProgress 
+                      amount={record.amount} 
+                      receivedAmount={record.receivedAmount} 
+                      remainingAmount={record.remainingAmount} 
+                    />
                   </button>
 
                   {/* Bottom action row */}
@@ -630,14 +674,14 @@ const KhidmatTable = () => {
                     </div>
                   )}
                 </div>
-              )
+              );
             })
         }
       </div>
 
       <Pagination />
     </div>
-  )
-}
+  );
+};
 
-export default KhidmatTable
+export default KhidmatTable;

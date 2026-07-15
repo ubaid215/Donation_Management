@@ -1,11 +1,11 @@
-// ============================================================
-<<<<<<< ours
+// ====
+
 // features/khidmatRecord/khidmat.routes.js (updated)
-=======
+
 // features/khidmatRecord/khidmat.routes.js
 // Complete updated routes
->>>>>>> theirs
-// ============================================================
+
+// ====
 
 import { Router } from 'express'
 import { authMiddleware, adminOnlyMiddleware } from '../../middlewares/auth.js'
@@ -13,18 +13,18 @@ import { authMiddleware, adminOnlyMiddleware } from '../../middlewares/auth.js'
 import {
   createRecord, getAllRecords, getRecordsByPerson, getRecord, updateRecord,
   deleteRecord, restoreRecord, addPayment, getPayments,
-<<<<<<< ours
+
   getStats, getAnalytics, sendWhatsApp
 } from './khidmat.controller.js'
 
 // Import bulk reminder controllers
-=======
+
   getStats, getAnalytics, sendWhatsApp,
   getPersonPayments, sendPersonWhatsApp,
   getSchedules, createSchedule, updateSchedule, deleteSchedule, runSchedule
 } from './khidmat.controller.js'
 
->>>>>>> theirs
+
 import { 
   previewBulkReminders, 
   sendBulkRemindersController 
@@ -34,11 +34,11 @@ import {
   createKhidmatValidator, updateKhidmatValidator,
   deleteKhidmatValidator, listKhidmatValidator,
   sendWhatsappValidator, addPaymentValidator,
-<<<<<<< ours
+
   bulkReminderValidator, bulkReminderPreviewValidator  // Add these imports
-=======
+
   bulkReminderValidator, bulkReminderPreviewValidator
->>>>>>> theirs
+
 } from './khidmat.validator.js'
 
 import {
@@ -50,7 +50,7 @@ const router = Router()
 
 router.use(authMiddleware)
 
-<<<<<<< ours
+
 // ── Static routes first (before /:id) ────────
 router.get('/stats',     adminOnlyMiddleware, getStats)
 router.get('/analytics', getAnalytics)               // accessible to all auth users
@@ -71,7 +71,7 @@ router.get('/reports/receipt/:id',   generateKhidmatReceipt)
 router.get('/by-person', listKhidmatValidator, getRecordsByPerson)
 router.get('/',    listKhidmatValidator,   getAllRecords)
 router.post('/',   createKhidmatValidator, createRecord)
-=======
+
 // ── Static routes ────────────────────────────
 router.get('/stats', adminOnlyMiddleware, getStats)
 router.get('/analytics', getAnalytics)
@@ -102,26 +102,26 @@ router.get('/reports/receipt/:id', generateKhidmatReceipt)
 router.get('/by-person', listKhidmatValidator, getRecordsByPerson)
 router.get('/', listKhidmatValidator, getAllRecords)
 router.post('/', createKhidmatValidator, createRecord)
->>>>>>> theirs
+
 router.get('/:id', getRecord)
 router.put('/:id', updateKhidmatValidator, updateRecord)
 router.delete('/:id', deleteKhidmatValidator, deleteRecord)
 
-<<<<<<< ours
+
 // ── Restore (Admin) ───────────────────────────
 router.post('/:id/restore', adminOnlyMiddleware, restoreRecord)
 
 // ── Payments / installments ───────────────────
 router.post('/:id/payments', addPaymentValidator, addPayment)
 router.get('/:id/payments',  getPayments)
-=======
+
 // ── Restore ────────────────────────────────────
 router.post('/:id/restore', adminOnlyMiddleware, restoreRecord)
 
 // ── Payments ──────────────────────────────────
 router.post('/:id/payments', addPaymentValidator, addPayment)
 router.get('/:id/payments', getPayments)
->>>>>>> theirs
+
 
 // ── WhatsApp ──────────────────────────────────
 router.post('/:id/whatsapp', sendWhatsappValidator, sendWhatsApp)

@@ -1,28 +1,28 @@
-// ============================================================
+// ====
 // features/khidmatRecord/khidmat.service.js
-<<<<<<< ours
+
 // Backend service — full version with installments + analytics
-=======
+
 // COMPLETE FIXED VERSION - All methods properly organized
->>>>>>> theirs
-// ============================================================
+
+// ====
 
 import prisma from '../../config/prisma.js'
 import { createAuditLog } from '../../utils/auditLogger.js'
-<<<<<<< ours
-=======
+
+
 import { translateToUrdu } from '../../utils/translate.js'
 import { sendKhidmatWhatsApp } from '../../utils/recordNotification.js'
->>>>>>> theirs
+
 
 // ─── Helpers ─────────────────────────────────────────────────
 
 const toNum = (d) => parseFloat(d?.toString() ?? '0')
 
-<<<<<<< ours
+
 /** Normalise Decimal fields to plain JS numbers */
-=======
->>>>>>> theirs
+
+
 const normalizeRecord = (r) => ({
   ...r,
   amount: toNum(r.amount),
@@ -31,14 +31,14 @@ const normalizeRecord = (r) => ({
   payments: (r.payments || []).map(p => ({ ...p, amount: toNum(p.amount) }))
 })
 
-<<<<<<< ours
+
 /**
  * Derive status automatically from financial figures.
  * If the caller passes an explicit status we honour it,
  * otherwise we infer it from the numbers.
  */
-=======
->>>>>>> theirs
+
+
 const deriveStatus = (totalAmount, receivedAmount, explicitStatus) => {
   if (explicitStatus) return explicitStatus
   if (receivedAmount <= 0) return 'RECORD_ONLY'
@@ -46,11 +46,11 @@ const deriveStatus = (totalAmount, receivedAmount, explicitStatus) => {
   return 'PARTIAL'
 }
 
-<<<<<<< ours
+
 // ─────────────────────────────────────────────────────────────
 export class KhidmatRecordService {
 
-=======
+
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 const TIME_REGEX = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
@@ -59,16 +59,16 @@ const TIME_REGEX = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
 // ─────────────────────────────────────────────────────────────
 export class KhidmatRecordService {
 
-  // ============================================================
+  // ====
   // CRUD OPERATIONS
-  // ============================================================
+  // ====
 
->>>>>>> theirs
+
   // ─────────────────────────────────────────────
   // CREATE
   // ─────────────────────────────────────────────
   async createRecord(data, userId, ipAddress = null) {
-<<<<<<< ours
+
     const record = await prisma.$transaction(async (tx) => {
       const category = await tx.donationCategory.findUnique({ where: { id: data.categoryId } })
       if (!category) throw new Error('Category not found')
@@ -77,7 +77,7 @@ export class KhidmatRecordService {
       const receivedAmount = parseFloat(data.receivedAmount ?? 0)
       const totalAmount = parseFloat(data.amount)
       const status = deriveStatus(totalAmount, receivedAmount, data.status)
-=======
+
     let nameUrdu = null;
     if (data.name) {
       try {
@@ -99,15 +99,15 @@ export class KhidmatRecordService {
       const receivedAmount = parseFloat(data.receivedAmount ?? 0);
       const totalAmount = parseFloat(data.amount);
       const status = deriveStatus(totalAmount, receivedAmount, data.status);
->>>>>>> theirs
+
 
       const newRecord = await tx.khidmatRecord.create({
         data: {
           name: data.name,
-<<<<<<< ours
-=======
+
+
           nameUrdu: nameUrdu || data.nameUrdu || null,
->>>>>>> theirs
+
           phone: data.phone,
           address: data.address || null,
           amount: totalAmount,
@@ -123,14 +123,14 @@ export class KhidmatRecordService {
           operator: { select: { id: true, name: true } },
           payments: true,
         }
-<<<<<<< ours
+
       })
 
       // Log initial payment as first installment if amount > 0
-=======
+
       });
 
->>>>>>> theirs
+
       if (receivedAmount > 0) {
         await tx.khidmatPayment.create({
           data: {
@@ -139,11 +139,11 @@ export class KhidmatRecordService {
             notes: 'Initial payment on record creation',
             paidAt: newRecord.date,
           }
-<<<<<<< ours
+
         })
-=======
+
         });
->>>>>>> theirs
+
       }
 
       await createAuditLog({
@@ -152,7 +152,7 @@ export class KhidmatRecordService {
         userRole: 'OPERATOR',
         entityType: 'KHIDMAT_RECORD',
         entityId: newRecord.id,
-<<<<<<< ours
+
         description: `Khidmat record created for "${data.name}" — pledged: ${totalAmount}, received: ${receivedAmount}`,
         metadata: { name: data.name, phone: data.phone, amount: totalAmount, receivedAmount, status, categoryName: category.name },
         ipAddress
@@ -161,7 +161,7 @@ export class KhidmatRecordService {
       return newRecord
     })
 
-=======
+
         description: `Khidmat record created for "${data.name}"`,
         metadata: { 
           name: data.name, 
@@ -251,14 +251,14 @@ export class KhidmatRecordService {
     })
 
     if (!record || record.isDeleted) throw new Error('Record not found')
->>>>>>> theirs
+
     return normalizeRecord(record)
   }
 
   // ─────────────────────────────────────────────
-<<<<<<< ours
+
   // ADD PAYMENT (installment)
-=======
+
   // UPDATE
   // ─────────────────────────────────────────────
   async updateRecord(id, updateData, userId, userRole, ipAddress = null) {
@@ -387,13 +387,13 @@ export class KhidmatRecordService {
     return normalizeRecord(record)
   }
 
-  // ============================================================
+  // ====
   // PAYMENT OPERATIONS
-  // ============================================================
+  // ====
 
   // ─────────────────────────────────────────────
   // ADD PAYMENT
->>>>>>> theirs
+
   // ─────────────────────────────────────────────
   async addPayment(recordId, paymentData, userId, userRole, ipAddress = null) {
     const result = await prisma.$transaction(async (tx) => {
@@ -445,11 +445,11 @@ export class KhidmatRecordService {
         userRole,
         entityType: 'KHIDMAT_RECORD',
         entityId: recordId,
-<<<<<<< ours
+
         description: `Payment of Rs ${paymentAmount} added for "${existing.name}" — total received: Rs ${newReceived} / Rs ${totalAmount}`,
-=======
+
         description: `Payment of Rs ${paymentAmount} added for "${existing.name}"`,
->>>>>>> theirs
+
         metadata: {
           paymentAmount,
           previousReceived: toNum(existing.receivedAmount),
@@ -473,21 +473,21 @@ export class KhidmatRecordService {
   }
 
   // ─────────────────────────────────────────────
-<<<<<<< ours
+
   // GET PAYMENT HISTORY
-=======
+
   // GET PAYMENTS
->>>>>>> theirs
+
   // ─────────────────────────────────────────────
   async getPayments(recordId) {
     const record = await prisma.khidmatRecord.findUnique({
       where: { id: recordId },
       select: {
-<<<<<<< ours
+
         id: true, name: true, amount: true,
-=======
+
         id: true, name: true, nameUrdu: true, amount: true,
->>>>>>> theirs
+
         receivedAmount: true, status: true,
         payments: { orderBy: { paidAt: 'desc' } }
       }
@@ -498,10 +498,10 @@ export class KhidmatRecordService {
     return {
       recordId: record.id,
       name: record.name,
-<<<<<<< ours
-=======
+
+
       nameUrdu: record.nameUrdu,
->>>>>>> theirs
+
       totalAmount: toNum(record.amount),
       receivedAmount: toNum(record.receivedAmount),
       remainingAmount: toNum(record.amount) - toNum(record.receivedAmount),
@@ -510,7 +510,7 @@ export class KhidmatRecordService {
     }
   }
 
-<<<<<<< ours
+
   // ─────────────────────────────────────────────
   // GET ALL  (paginated + filtered)
   // ─────────────────────────────────────────────
@@ -568,14 +568,14 @@ export class KhidmatRecordService {
 
   // ─────────────────────────────────────────────
   // GET GROUPED BY PERSON  (yearly / filtered view)
-=======
-  // ============================================================
+
+  // ====
   // PERSON OPERATIONS
-  // ============================================================
+  // ====
 
   // ─────────────────────────────────────────────
   // GET GROUPED BY PERSON
->>>>>>> theirs
+
   // ─────────────────────────────────────────────
   async getRecordsGroupedByPerson(filters = {}, requestingUser = null) {
     const {
@@ -583,10 +583,10 @@ export class KhidmatRecordService {
       startDate, endDate
     } = filters
 
-<<<<<<< ours
+
     // Year filter takes precedence for date range
-=======
->>>>>>> theirs
+
+
     let dateStart = startDate
     let dateEnd = endDate
     if (year) {
@@ -608,10 +608,10 @@ export class KhidmatRecordService {
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
-<<<<<<< ours
-=======
+
+
           { nameUrdu: { contains: search, mode: 'insensitive' } },
->>>>>>> theirs
+
           { phone: { contains: search, mode: 'insensitive' } },
         ]
       })
@@ -637,10 +637,10 @@ export class KhidmatRecordService {
         personMap.set(phoneKey, {
           key: phoneKey,
           name: record.name,
-<<<<<<< ours
-=======
+
+
           nameUrdu: record.nameUrdu,
->>>>>>> theirs
+
           phone: record.phone,
           address: record.address,
           records: [],
@@ -656,13 +656,13 @@ export class KhidmatRecordService {
       person.totalReceived += record.receivedAmount
       person.totalRemaining += record.remainingAmount
       person.recordCount += 1
-<<<<<<< ours
+
       // Keep most recent name/address
       if (record.name) person.name = record.name
-=======
+
       if (record.name) person.name = record.name
       if (record.nameUrdu) person.nameUrdu = record.nameUrdu
->>>>>>> theirs
+
       if (record.address) person.address = record.address
     }
 
@@ -680,7 +680,7 @@ export class KhidmatRecordService {
   }
 
   // ─────────────────────────────────────────────
-<<<<<<< ours
+
   // GET BY ID
   // ─────────────────────────────────────────────
   async getRecordById(id) {
@@ -810,7 +810,7 @@ export class KhidmatRecordService {
     return normalizeRecord(record)
   }
 
-=======
+
   // GET PERSON PAYMENTS (Full history by category)
   // ─────────────────────────────────────────────
   async getPersonPayments(phone) {
@@ -987,11 +987,11 @@ export class KhidmatRecordService {
     }
   }
 
-  // ============================================================
+  // ====
   // STATS & ANALYTICS
-  // ============================================================
+  // ====
 
->>>>>>> theirs
+
   // ─────────────────────────────────────────────
   // STATS
   // ─────────────────────────────────────────────
@@ -1051,7 +1051,7 @@ export class KhidmatRecordService {
   }
 
   // ─────────────────────────────────────────────
-<<<<<<< ours
+
   // ANALYTICS  (chart data)
   //
   // Returns:
@@ -1060,9 +1060,9 @@ export class KhidmatRecordService {
   //
   // NOTE: Uses Prisma groupBy instead of $queryRaw to avoid
   // template-literal conditional issues across DB drivers.
-=======
+
   // ANALYTICS
->>>>>>> theirs
+
   // ─────────────────────────────────────────────
   async getAnalytics(filters = {}) {
     const { startDate, endDate, categoryId } = filters
@@ -1078,10 +1078,10 @@ export class KhidmatRecordService {
       ...(categoryId && { categoryId })
     }
 
-<<<<<<< ours
+
     // ── By category (Prisma groupBy — no raw SQL needed) ──────
-=======
->>>>>>> theirs
+
+
     const categoryRaw = await prisma.khidmatRecord.groupBy({
       by: ['categoryId'],
       where: baseWhere,
@@ -1089,19 +1089,19 @@ export class KhidmatRecordService {
       _sum: { amount: true, receivedAmount: true }
     })
 
-<<<<<<< ours
+
     // Enrich with category name + color
-=======
->>>>>>> theirs
+
+
     const categoryIds = categoryRaw.map(c => c.categoryId)
     const categories = categoryIds.length > 0
       ? await prisma.donationCategory.findMany({
         where: { id: { in: categoryIds } },
-<<<<<<< ours
+
         select: { id: true, name: true, color: true, icon: true }
-=======
+
         select: { id: true, name: true, nameUrdu: true, color: true, icon: true }
->>>>>>> theirs
+
       })
       : []
 
@@ -1112,10 +1112,10 @@ export class KhidmatRecordService {
       return {
         categoryId: row.categoryId,
         name: catMap[row.categoryId]?.name || 'Unknown',
-<<<<<<< ours
-=======
+
+
         nameUrdu: catMap[row.categoryId]?.nameUrdu || null,
->>>>>>> theirs
+
         color: catMap[row.categoryId]?.color || '#3b82f6',
         icon: catMap[row.categoryId]?.icon || 'Tag',
         count: row._count,
@@ -1126,11 +1126,11 @@ export class KhidmatRecordService {
       }
     })
 
-<<<<<<< ours
+
     // ── Monthly trend (raw SQL — safest approach for date grouping) ──
     // Build WHERE clauses as separate strings to avoid template issues
-=======
->>>>>>> theirs
+
+
     const conditions = [`"isDeleted" = false`]
     const values = []
 
@@ -1172,12 +1172,12 @@ export class KhidmatRecordService {
 
     return { monthlyTrend, byCategory }
   }
-<<<<<<< ours
-=======
 
-  // ============================================================
+
+
+  // ====
   // SCHEDULER OPERATIONS
-  // ============================================================
+  // ====
 
   // ─────────────────────────────────────────────
   // GET SCHEDULES (Fixed - Production Ready)
@@ -1802,5 +1802,5 @@ async createSchedule(data, userId, ipAddress = null) {
 
     return next
   }
->>>>>>> theirs
+
 }

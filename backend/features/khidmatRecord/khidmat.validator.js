@@ -1,6 +1,6 @@
-// ============================================================
+// ====
 // features/khidmatRecord/khidmat.validator.js
-// ============================================================
+// ====
 
 import { body, param, query } from 'express-validator'
 import { validationResult } from 'express-validator'
@@ -170,9 +170,9 @@ export const sendWhatsappValidator = [
 // Bulk SEND WHATSAPP
 // ─────────────────────────────────────────────
 
-// ============================================================
+// ====
 // Add to features/khidmatRecord/khidmat.validator.js
-// ============================================================
+// ====
 
 // Add these validators to the existing file
 

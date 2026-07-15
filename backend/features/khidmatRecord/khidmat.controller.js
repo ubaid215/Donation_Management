@@ -1,18 +1,18 @@
-// ============================================================
+// ====
 // features/khidmatRecord/khidmat.controller.js
-<<<<<<< ours
-=======
+
+
 // Complete updated controller with new endpoints
->>>>>>> theirs
-// ============================================================
+
+// ====
 
 import asyncHandler from 'express-async-handler'
 import { KhidmatRecordService } from './khidmat.service.js'
-<<<<<<< ours
+
 import { sendKhidmatWhatsApp }  from '../../utils/recordNotification.js'
-=======
+
 import { sendKhidmatWhatsApp } from '../../utils/recordNotification.js'
->>>>>>> theirs
+
 
 const service = new KhidmatRecordService()
 
@@ -73,11 +73,11 @@ export const deleteRecord = asyncHandler(async (req, res) => {
 })
 
 // ─────────────────────────────────────────────
-<<<<<<< ours
+
 // POST /api/khidmat/:id/restore  (Admin only)
-=======
+
 // POST /api/khidmat/:id/restore
->>>>>>> theirs
+
 // ─────────────────────────────────────────────
 export const restoreRecord = asyncHandler(async (req, res) => {
   const record = await service.restoreRecord(
@@ -89,10 +89,10 @@ export const restoreRecord = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────
 // POST /api/khidmat/:id/payments
-<<<<<<< ours
+
 // Add a new installment payment to a record
-=======
->>>>>>> theirs
+
+
 // ─────────────────────────────────────────────
 export const addPayment = asyncHandler(async (req, res) => {
   const { record, payment } = await service.addPayment(
@@ -109,10 +109,10 @@ export const addPayment = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────
 // GET /api/khidmat/:id/payments
-<<<<<<< ours
+
 // Get full payment history for a record
-=======
->>>>>>> theirs
+
+
 // ─────────────────────────────────────────────
 export const getPayments = asyncHandler(async (req, res) => {
   const data = await service.getPayments(req.params.id)
@@ -120,9 +120,9 @@ export const getPayments = asyncHandler(async (req, res) => {
 })
 
 // ─────────────────────────────────────────────
-<<<<<<< ours
+
 // GET /api/khidmat/stats  (Admin only)
-=======
+
 // GET /api/khidmat/person/:phone/payments
 // Get full payment history for a person grouped by category
 // ─────────────────────────────────────────────
@@ -157,7 +157,7 @@ export const sendPersonWhatsApp = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────
 // GET /api/khidmat/stats
->>>>>>> theirs
+
 // ─────────────────────────────────────────────
 export const getStats = asyncHandler(async (req, res) => {
   const stats = await service.getStats(req.query)
@@ -166,11 +166,11 @@ export const getStats = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────
 // GET /api/khidmat/analytics
-<<<<<<< ours
+
 // Chart data: monthly trend + by-category breakdown
 // Query params: startDate, endDate, categoryId (optional filter)
-=======
->>>>>>> theirs
+
+
 // ─────────────────────────────────────────────
 export const getAnalytics = asyncHandler(async (req, res) => {
   const data = await service.getAnalytics(req.query)
@@ -186,8 +186,8 @@ export const sendWhatsApp = asyncHandler(async (req, res) => {
     req.ip || req.connection.remoteAddress
   )
   res.json({ success: true, message: 'WhatsApp message sent successfully', messageId: result.messageId })
-<<<<<<< ours
-=======
+
+
 })
 
 // ─────────────────────────────────────────────
@@ -254,5 +254,5 @@ export const runSchedule = asyncHandler(async (req, res) => {
     message: `Schedule run completed: ${result.sent} sent, ${result.failed} failed`,
     ...result
   })
->>>>>>> theirs
+
 })

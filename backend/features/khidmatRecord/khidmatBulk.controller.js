@@ -1,6 +1,6 @@
-// ============================================================
+// ====
 // features/khidmatRecord/khidmatBulk.controller.js
-// ============================================================
+// ====
 
 import asyncHandler from 'express-async-handler'
 import prisma from '../../config/prisma.js'

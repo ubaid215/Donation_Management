@@ -1,8 +1,8 @@
-// ============================================================
+// ====
 // features/khidmatRecord/khidmatReport.controller.js
 // PDF report endpoints for KhidmatRecord
 // Mirrors the structure of reports.controller.js exactly.
-// ============================================================
+// ====
 
 import asyncHandler from 'express-async-handler';
 import { KhidmatPDFGenerator } from './khidmatPdfGenerator.js';

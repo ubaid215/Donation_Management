@@ -1,32 +1,110 @@
+// ============================================================
+// utils/auditLogger.js
+// Fixed - Removed debug logging and added proper error handling
+// ============================================================
+
 import prisma from '../config/prisma.js';
+
+// Define valid audit actions
+const VALID_AUDIT_ACTIONS = {
+  // Auth actions
+  USER_CREATED: 'USER_CREATED',
+  USER_UPDATED: 'USER_UPDATED',
+  USER_DELETED: 'USER_DELETED',
+  ADMIN_LOGIN: 'ADMIN_LOGIN',
+  OPERATOR_LOGIN: 'OPERATOR_LOGIN',
+  PASSWORD_RESET_REQUESTED: 'PASSWORD_RESET_REQUESTED',
+  PASSWORD_RESET_COMPLETED: 'PASSWORD_RESET_COMPLETED',
+  PASSWORD_CHANGED: 'PASSWORD_CHANGED',
+  EMAIL_CHANGED: 'EMAIL_CHANGED',
+  
+  // Donation actions
+  DONATION_CREATED: 'DONATION_CREATED',
+  DONATION_UPDATED: 'DONATION_UPDATED',
+  DONATION_DELETED: 'DONATION_DELETED',
+  DONATION_RESTORED: 'DONATION_RESTORED',
+  
+  // Khidmat actions
+  KHIDMAT_CREATED: 'KHIDMAT_CREATED',
+  KHIDMAT_UPDATED: 'KHIDMAT_UPDATED',
+  KHIDMAT_DELETED: 'KHIDMAT_DELETED',
+  KHIDMAT_RESTORED: 'KHIDMAT_RESTORED',
+  KHIDMAT_PAYMENT_ADDED: 'KHIDMAT_PAYMENT_ADDED',
+  KHIDMAT_WHATSAPP_SENT: 'KHIDMAT_WHATSAPP_SENT',
+  KHIDMAT_BULK_REMINDER_SENT: 'KHIDMAT_BULK_REMINDER_SENT',
+  KHIDMAT_PERSON_WHATSAPP_SENT: 'KHIDMAT_PERSON_WHATSAPP_SENT',
+  
+  // Reminder Schedule actions
+  REMINDER_SCHEDULE_CREATED: 'REMINDER_SCHEDULE_CREATED',
+  REMINDER_SCHEDULE_UPDATED: 'REMINDER_SCHEDULE_UPDATED',
+  REMINDER_SCHEDULE_DELETED: 'REMINDER_SCHEDULE_DELETED',
+  REMINDER_SCHEDULE_RUN: 'REMINDER_SCHEDULE_RUN',
+  REMINDER_SCHEDULE_ERROR: 'REMINDER_SCHEDULE_ERROR',
+  REMINDER_SCHEDULE_TEMPLATE_ERROR: 'REMINDER_SCHEDULE_TEMPLATE_ERROR',
+  
+  // Category actions
+  CATEGORY_CREATED: 'CATEGORY_CREATED',
+  CATEGORY_UPDATED: 'CATEGORY_UPDATED',
+  CATEGORY_DELETED: 'CATEGORY_DELETED',
+  
+  // Report actions
+  REPORT_GENERATED: 'REPORT_GENERATED',
+  REPORT_DOWNLOADED: 'REPORT_DOWNLOADED',
+  
+  // System actions
+  SYSTEM_ERROR: 'SYSTEM_ERROR',
+  SYSTEM_STARTUP: 'SYSTEM_STARTUP',
+  SYSTEM_SHUTDOWN: 'SYSTEM_SHUTDOWN',
+};
 
 export const createAuditLog = async (logData) => {
   try {
-    // ADD DEBUG LOGGING
-    console.log('📝 CREATE AUDIT LOG CALLED:');
-    console.log('Description:', logData.description);
-    console.log('Action:', logData.action);
-    console.log('Call stack (first 3 lines):');
-    const stack = new Error().stack;
-    console.log(stack.split('\n').slice(0, 4).join('\n')); // Show caller
-    console.log('---');
+    // Validate required fields
+    if (!logData.action) {
+      console.warn('⚠️ Audit log missing action field');
+      return null;
+    }
+
+    // Ensure action is valid (fallback to SYSTEM if not found)
+    const action = VALID_AUDIT_ACTIONS[logData.action] || 'SYSTEM_ERROR';
     
+    // Prepare data for Prisma
+    const auditData = {
+      action: action,
+      entityType: logData.entityType || 'SYSTEM',
+      entityId: logData.entityId || 'unknown',
+      description: logData.description || `${action} performed`,
+      userRole: logData.userRole || 'SYSTEM',
+      userId: logData.userId || null,
+      ipAddress: logData.ipAddress || null,
+      userAgent: logData.userAgent || null,
+      metadata: logData.metadata || {},
+      timestamp: new Date()
+    };
+
+    // Log to console in development for debugging
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`📝 Audit Log: ${action} - ${auditData.description}`);
+    }
+
+    // Create audit log in database
     return await prisma.auditLog.create({
-      data: {
-        action: logData.action,
-        entityType: logData.entityType || 'SYSTEM',
-        entityId: logData.entityId,
-        description: logData.description,
-        userRole: logData.userRole,
-        userId: logData.userId,
-        ipAddress: logData.ipAddress,
-        userAgent: logData.userAgent,
-        metadata: logData.metadata || {},
-        timestamp: new Date()
-      }
+      data: auditData
     });
+
   } catch (error) {
-    console.error('Audit logging failed:', error);
+    // Don't crash the app if audit logging fails
+    console.error('❌ Audit logging failed:', {
+      error: error.message,
+      action: logData.action,
+      description: logData.description
+    });
+    
+    // In development, log the full error
+    if (process.env.NODE_ENV === 'development') {
+      console.error(error.stack);
+    }
+    
     return null;
   }
 };
@@ -69,7 +147,7 @@ export const getAuditLogs = async (filters = {}) => {
         where,
         orderBy: { timestamp: 'desc' },
         skip: (pageInt - 1) * limitInt,
-        take: limitInt, // Now an integer, not a string
+        take: limitInt,
         include: {
           user: {
             select: {
@@ -99,7 +177,6 @@ export const getAuditLogs = async (filters = {}) => {
   }
 };
 
-// Add this function to auditLogger.js
 export const getLogStats = async (filters = {}) => {
   const { startDate, endDate } = filters;
   
@@ -124,4 +201,7 @@ export const getLogStats = async (filters = {}) => {
     console.error('Error fetching audit log stats:', error);
     throw error;
   }
-}; 
+};
+
+// Export valid actions for use in other modules
+export { VALID_AUDIT_ACTIONS };

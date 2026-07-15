@@ -1,6 +1,6 @@
 // ============================================================
 // components/khidmat/SchedulerManager.jsx
-// Updated with time selection and category filter
+// FIXED - Time display with proper timezone handling
 // ============================================================
 
 import React, { useState, useEffect } from 'react'
@@ -28,6 +28,41 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'RECORD_ONLY', label: 'Record Only' },
   { value: 'COMPLETED', label: 'Completed' },
 ]
+
+// ─── Helper: Format time for display ──────────
+const formatTimeForDisplay = (dateString) => {
+  if (!dateString) return 'Not scheduled'
+  try {
+    const date = new Date(dateString)
+    // Check if date is valid
+    if (isNaN(date.getTime())) return 'Invalid date'
+    // Format in local timezone with AM/PM
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    })
+  } catch (e) {
+    return 'Invalid date'
+  }
+}
+
+// ─── Helper: Format time for input ────────────
+const formatTimeForInput = (timeString) => {
+  if (!timeString) return '09:00'
+  // If it's already in HH:mm format, return it
+  if (/^\d{2}:\d{2}$/.test(timeString)) return timeString
+  try {
+    const date = new Date(timeString)
+    if (isNaN(date.getTime())) return '09:00'
+    return date.toTimeString().slice(0, 5)
+  } catch (e) {
+    return '09:00'
+  }
+}
 
 const SchedulerManager = () => {
   const { records } = useKhidmat()
@@ -165,7 +200,7 @@ const SchedulerManager = () => {
     setFormData({
       name: schedule.name,
       frequency: schedule.frequency,
-      time: schedule.time || '09:00',
+      time: formatTimeForInput(schedule.time),
       recordIds: schedule.records?.map(r => r.recordId) || [],
       isActive: schedule.isActive,
       filterStatuses: schedule.filterStatuses || ['PARTIAL', 'RECORD_ONLY'],
@@ -270,8 +305,12 @@ const SchedulerManager = () => {
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-100">
               <div className="text-xs text-slate-400">
-                {schedule.nextRunAt && (
-                  <>Next: {new Date(schedule.nextRunAt).toLocaleString()}</>
+                {schedule.nextRunAt ? (
+                  <>
+                    Next: {formatTimeForDisplay(schedule.nextRunAt)}
+                  </>
+                ) : (
+                  'Not scheduled'
                 )}
               </div>
               <div className="flex items-center gap-1">
@@ -373,6 +412,7 @@ const SchedulerManager = () => {
                     onChange={e => setFormData({ ...formData, time: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">Enter time in 24-hour format (e.g., 23:00 for 11 PM)</p>
                 </div>
               </div>
 

@@ -7,6 +7,7 @@ import prisma from '../../config/prisma.js'
 import { createAuditLog } from '../../utils/auditLogger.js'
 import { translateToUrdu } from '../../utils/translate.js'
 import { sendKhidmatWhatsApp } from '../../utils/recordNotification.js'
+import { calculateNextRun } from '../../utils/scheduleTime.js'
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -1439,40 +1440,13 @@ async createSchedule(data, userId, ipAddress = null) {
 
   /**
    * Calculate next run time based on frequency and time-of-day.
+   * Delegates to the shared utils/scheduleTime.js#calculateNextRun,
+   * which always treats `schedule.time` ("HH:mm") as Asia/Karachi
+   * local time using fixed UTC+5:00 math — independent of whatever
+   * timezone this Node process happens to be running in.
    * @param {Object} schedule - Object with `frequency` and optional `time` ("HH:mm", default "09:00")
    */
   _calculateNextRun(schedule) {
-    const now = new Date()
-    const next = new Date(now)
-
-    // Parse time from schedule (default: 09:00)
-    const timeParts = (schedule.time || '09:00').split(':')
-    const hours = parseInt(timeParts[0], 10) || 9
-    const minutes = parseInt(timeParts[1], 10) || 0
-
-    // Set time of day
-    next.setHours(hours, minutes, 0, 0)
-
-    // If that time has already passed today, move to the next occurrence
-    if (next <= now) {
-      switch (schedule.frequency) {
-        case 'DAILY':
-          next.setDate(next.getDate() + 1)
-          break
-        case 'WEEKLY':
-          next.setDate(next.getDate() + 7)
-          break
-        case 'MONTHLY':
-          next.setMonth(next.getMonth() + 1)
-          break
-        case 'CUSTOM':
-          next.setDate(next.getDate() + 1)
-          break
-        default:
-          next.setDate(next.getDate() + 1)
-      }
-    }
-
-    return next
+    return calculateNextRun(schedule)
   }
 }

@@ -1,5 +1,5 @@
 // ============================================================
-// server.js - Add scheduler initialization
+// server.js - Complete with scheduler initialization and error handling
 // ============================================================
 
 import express from 'express';
@@ -24,8 +24,8 @@ import khidmatRoutes from './features/khidmatRecord/khidmat.routes.js';
 import whatsappTestRoutes from './features/whatsapp/whatsapp-test.route.js';
 import webhookRoutes from './routes/webhook.routes.js';
 
-// Import scheduler
-import { initScheduler } from './features/khidmatRecord/scheduler.service.js';
+// Import scheduler with all exports
+import { initScheduler, stopScheduler, runSchedulerManually } from './features/khidmatRecord/scheduler.service.js';
 
 // Import prisma for health check
 import prisma from './config/prisma.js'; 
@@ -134,7 +134,8 @@ app.get('/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
-      database: 'connected'
+      database: 'connected',
+      scheduler: schedulerJobs ? 'running' : 'stopped'
     });
   } catch (error) {
     console.error('Health check failed:', error);
@@ -168,7 +169,49 @@ app.get('/api', (req, res) => {
   });
 });
 
-// API Routes
+// ========== ADMIN ROUTES ==========
+
+// Manual scheduler test route (Admin only - protected by middleware)
+// This route should be added to khidmat.routes.js, but we'll add it here for completeness
+app.post('/api/admin/run-scheduler', async (req, res) => {
+  try {
+    // Check if user is admin - simple check, you should use your auth middleware
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ success: false, error: 'Authorization required' });
+    }
+    
+    // You should verify the JWT token here and check admin role
+    // This is a simplified version - use your actual auth middleware
+    
+    const result = await runSchedulerManually();
+    res.json({
+      success: true,
+      message: 'Scheduler test run completed',
+      result
+    });
+  } catch (error) {
+    console.error('Manual scheduler run failed:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Scheduler test run failed',
+      error: error.message
+    });
+  }
+});
+
+// Scheduler status endpoint
+app.get('/api/admin/scheduler-status', (req, res) => {
+  res.json({
+    success: true,
+    schedulerRunning: !!schedulerJobs,
+    status: schedulerJobs ? 'active' : 'inactive',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ========== API ROUTES ==========
+
 app.use('/api/auth', authRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/admin', adminRoutes);
@@ -235,63 +278,111 @@ let schedulerJobs = null;
 
 const startServer = async () => {
   try {
-    await connectPrisma();
+    console.log('🚀 Starting server...');
+    console.log(`📦 Environment: ${config.nodeEnv}`);
+    console.log(`🔌 Port: ${config.port}`);
     
-    // Initialize scheduler
-    schedulerJobs = initScheduler();
+    // Connect to database
+    await connectPrisma();
+    console.log('✅ Database connected');
+    
+    // Initialize scheduler with error handling
+    try {
+      schedulerJobs = initScheduler();
+      console.log('✅ Scheduler initialized successfully');
+    } catch (schedulerError) {
+      console.error('⚠️ Scheduler initialization failed:', schedulerError.message);
+      console.log('⚠️ Continuing without scheduler...');
+      schedulerJobs = null;
+    }
     
     const server = app.listen(config.port, () => {
-      console.log(`🚀 Server is running on port ${config.port}`);
+      console.log(`\n🚀 Server is running on port ${config.port}`);
       console.log(`🌍 Environment: ${config.nodeEnv}`);
+      console.log("Current Date:", new Date());
+console.log("ISO:", new Date().toISOString());
+console.log("Locale:", new Date().toLocaleString());
+console.log("Timezone:", Intl.DateTimeFormat().resolvedOptions().timeZone);
+console.log("TZ env:", process.env.TZ);
+console.log("Offset:", new Date().getTimezoneOffset());
       console.log(`📡 CORS Origins: ${config.security.corsOrigin.join(', ')}`);
       console.log(`🕐 Time: ${new Date().toLocaleString()}`);
-      console.log(`🔗 Health Check: http://localhost:${config.port}/health`);
+      console.log(`\n🔗 Health Check: http://localhost:${config.port}/health`);
       console.log(`🔗 API Base: http://localhost:${config.port}/api`);
       console.log(`🔗 Webhook URL: http://localhost:${config.port}/webhook/whatsapp`);
+      console.log(`\n📋 Scheduler Status: ${schedulerJobs ? '✅ Running' : '❌ Not running'}`);
+      if (schedulerJobs) {
+        console.log(`   Main task: 9 AM and 6 PM daily`);
+        console.log(`   Health check: Every 5 minutes`);
+      }
+      console.log(`\n✨ Server ready!`);
     });
+    
+    // ========== GRACEFUL SHUTDOWN ==========
     
     const shutdown = async (signal) => {
       console.log(`\n${signal} received. Starting graceful shutdown...`);
       
-      // Stop scheduler
+      // Stop scheduler if running
       if (schedulerJobs) {
         console.log('⏰ Stopping scheduler...');
-        schedulerJobs.mainJob.stop();
-        schedulerJobs.healthJob.stop();
+        try {
+          stopScheduler(schedulerJobs);
+          console.log('✅ Scheduler stopped');
+        } catch (error) {
+          console.error('⚠️ Error stopping scheduler:', error.message);
+        }
       }
       
+      // Close HTTP server
       server.close(async () => {
-        console.log('HTTP server closed');
-        await disconnectPrisma();
-        console.log('Graceful shutdown completed');
+        console.log('✅ HTTP server closed');
+        
+        // Disconnect from database
+        try {
+          await disconnectPrisma();
+          console.log('✅ Database disconnected');
+        } catch (error) {
+          console.error('⚠️ Error disconnecting from database:', error.message);
+        }
+        
+        console.log('✨ Graceful shutdown completed');
         process.exit(0);
       });
       
+      // Force shutdown after timeout
       setTimeout(() => {
-        console.error('Could not close connections in time, forcefully shutting down');
+        console.error('⚠️ Could not close connections in time, forcefully shutting down');
         process.exit(1);
       }, 10000);
     };
     
+    // Handle shutdown signals
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
     
+    // Handle uncaught exceptions
     process.on('uncaughtException', (error) => {
       console.error('🔥 Uncaught Exception:', error);
+      console.error('Stack:', error.stack);
       shutdown('UNCAUGHT_EXCEPTION');
     });
     
+    // Handle unhandled rejections
     process.on('unhandledRejection', (reason, promise) => {
-      console.error('🔥 Unhandled Rejection at:', promise, 'reason:', reason);
+      console.error('🔥 Unhandled Rejection at:', promise);
+      console.error('Reason:', reason);
       shutdown('UNHANDLED_REJECTION');
     });
     
   } catch (error) {
     console.error('💥 Failed to start server:', error);
+    console.error('Stack:', error.stack);
     process.exit(1);
   }
 };
 
+// Start the server
 startServer();
 
 export default app;

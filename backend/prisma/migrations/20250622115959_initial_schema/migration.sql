@@ -37,7 +37,6 @@ CREATE TABLE "audit_logs" (
 CREATE TABLE "donation_categories" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "nameUrdu" TEXT,
     "description" TEXT,
     "icon" TEXT DEFAULT 'Tag',
     "color" TEXT DEFAULT '#3b82f6',

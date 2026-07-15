@@ -166,8 +166,8 @@ export const sendWhatsApp = asyncHandler(async (req, res) => {
 
 // GET /api/khidmat/schedules
 export const getSchedules = asyncHandler(async (req, res) => {
-  const schedules = await service.getSchedules()
-  res.json({ success: true, schedules })
+  const result = await service.getSchedules(req.query)
+  res.json({ success: true, ...result })
 })
 
 // POST /api/khidmat/schedules

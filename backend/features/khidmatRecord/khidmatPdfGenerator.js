@@ -1,20 +1,32 @@
 // ============================================================
 // features/khidmatRecord/khidmatPdfGenerator.js
+<<<<<<< ours
 // PDF report generator for KhidmatRecord
 // Mirrors the style / structure of pdfGenerator.js exactly.
+=======
+// PDF report generator for KhidmatRecord - Updated with bilingual support
+>>>>>>> theirs
 // ============================================================
 
 import PDFDocument from 'pdfkit';
 import { registerPdfFonts, writePdfText } from '../../utils/pdfFonts.js';
 
+<<<<<<< ours
 // ─── Page geometry (same as pdfGenerator.js) ────────────────
+=======
+// ─── Page geometry ────────────────────────────────
+>>>>>>> theirs
 const A4_HEIGHT    = 841.89;
 const A4_WIDTH     = 595.28;
 const MARGIN       = 50;
 const USABLE_WIDTH = A4_WIDTH - MARGIN * 2;
 const FOOTER_H     = 45;
 const CONTENT_BOT  = A4_HEIGHT - FOOTER_H;
+<<<<<<< ours
 const ROW_H        = 24;
+=======
+const ROW_H        = 28; // Increased for bilingual names
+>>>>>>> theirs
 const HDR_H        = 22;
 const PAGE_TOP     = 45;
 
@@ -37,7 +49,10 @@ export class KhidmatPDFGenerator {
     this.organizationName = process.env.ORG_NAME || 'Donation Management Khanqah';
     this._pageCount       = 0;
 
+<<<<<<< ours
     // Colour palette — same variables as pdfGenerator.js
+=======
+>>>>>>> theirs
     this.primaryColor   = '#1e40af';
     this.secondaryColor = '#1d4ed8';
     this.accentColor    = '#3b82f6';
@@ -47,7 +62,10 @@ export class KhidmatPDFGenerator {
     this.darkGray       = '#64748b';
     this.white          = '#ffffff';
 
+<<<<<<< ours
     // Extra accent for status badges (subtle green row tint)
+=======
+>>>>>>> theirs
     this.completedTint  = '#f0fdf4';
     this.partialTint    = '#fefce8';
     this.recordTint     = '#eff6ff';
@@ -89,7 +107,10 @@ export class KhidmatPDFGenerator {
 
   // ── Page chrome ──────────────────────────────────────────────
 
+<<<<<<< ours
   /** Add a new page with the top colour bar; returns starting Y */
+=======
+>>>>>>> theirs
   _newPage() {
     this.doc.addPage();
     this._pageCount++;
@@ -114,7 +135,11 @@ export class KhidmatPDFGenerator {
     );
   }
 
+<<<<<<< ours
   // ── Page header (title block) ────────────────────────────────
+=======
+  // ── Page header ────────────────────────────────────────────────
+>>>>>>> theirs
 
   _drawPageHeader(title, subtitle) {
     subtitle = subtitle || '';
@@ -141,12 +166,19 @@ export class KhidmatPDFGenerator {
     return y + 18;
   }
 
+<<<<<<< ours
   // ── Summary cards (total records + total amount) ─────────────
+=======
+  // ── Summary cards ─────────────────────────────────────────────
+>>>>>>> theirs
 
   _drawSummaryCards(records, y) {
     const total = records.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
 
+<<<<<<< ours
     // Breakdown by status
+=======
+>>>>>>> theirs
     const counts = { COMPLETED: 0, PARTIAL: 0, RECORD_ONLY: 0 };
     records.forEach(r => { if (counts[r.status] !== undefined) counts[r.status]++; });
 
@@ -173,7 +205,11 @@ export class KhidmatPDFGenerator {
     return y + 58;
   }
 
+<<<<<<< ours
   // ── Active filter summary bar ────────────────────────────────
+=======
+  // ── Filter summary ────────────────────────────────────────────────
+>>>>>>> theirs
 
   _drawFilterSummary(filters, y) {
     const skip  = ['limit', 'page', 'categoryId'];
@@ -196,7 +232,11 @@ export class KhidmatPDFGenerator {
     return y + 36;
   }
 
+<<<<<<< ours
   // ── Table header row ─────────────────────────────────────────
+=======
+  // ── Table header ─────────────────────────────────────────────────
+>>>>>>> theirs
 
   _drawTableHeader(y) {
     this.doc.rect(MARGIN, y, USABLE_WIDTH, HDR_H).fill(this.primaryColor);
@@ -213,10 +253,17 @@ export class KhidmatPDFGenerator {
     return y + HDR_H;
   }
 
+<<<<<<< ours
   // ── Single data row (with subtle status-based row tint) ──────
 
   _drawTableRow(record, y, rowIndex) {
     // Row background — alternating + status tint
+=======
+  // ── Single data row (with bilingual support) ──────────────────
+
+  _drawTableRow(record, y, rowIndex) {
+    // Row background
+>>>>>>> theirs
     let bg;
     if (record.status === 'COMPLETED') {
       bg = rowIndex % 2 === 0 ? this.completedTint : '#dcfce7';
@@ -227,6 +274,7 @@ export class KhidmatPDFGenerator {
     }
     this.doc.rect(MARGIN, y, USABLE_WIDTH, ROW_H).fill(bg);
 
+<<<<<<< ours
     const catName = record.category?.nameUrdu || record.category?.name || 'General';
     const cells = [
       this._truncate(this._formatDate(record.date || record.createdAt), 12),
@@ -234,16 +282,48 @@ export class KhidmatPDFGenerator {
       this._truncate(record.phone || 'N/A', 18),
       this._formatAmount(record.amount),
       this._truncate(catName, 16),
+=======
+    const catName = record.category?.name || 'General';
+    const catNameUrdu = record.category?.nameUrdu;
+    
+    // Bilingual category display
+    let categoryDisplay = catName;
+    if (catNameUrdu && catNameUrdu !== catName) {
+      categoryDisplay = `${catName} / ${catNameUrdu}`;
+    }
+
+    // Bilingual name display
+    let nameDisplay = record.name || 'N/A';
+    if (record.nameUrdu && record.nameUrdu !== record.name) {
+      nameDisplay = `${record.name} / ${record.nameUrdu}`;
+    }
+
+    const cells = [
+      this._truncate(this._formatDate(record.date || record.createdAt), 12),
+      this._truncate(nameDisplay, 30),
+      this._truncate(record.phone || 'N/A', 18),
+      this._formatAmount(record.amount),
+      this._truncate(categoryDisplay, 20),
+>>>>>>> theirs
       this._statusLabel(record.status)
     ];
 
     this.doc.fontSize(9).font('Helvetica').fillColor(this.textColor);
     let x = MARGIN;
     cells.forEach((cell, i) => {
+<<<<<<< ours
       this._pdfText(cell, x + 4, y + 7, {
         size: 9,
         width: COL_WIDTHS[i] - 8,
         align: i === 3 ? 'right' : 'left',
+=======
+      // For name and category columns with Urdu, use slightly different alignment
+      const align = i === 3 ? 'right' : 'left';
+      this._pdfText(cell, x + 4, y + 7, {
+        size: 9,
+        width: COL_WIDTHS[i] - 8,
+        align: align,
+>>>>>>> theirs
         color: this.textColor,
       });
       x += COL_WIDTHS[i];
@@ -265,7 +345,11 @@ export class KhidmatPDFGenerator {
     return y + 46;
   }
 
+<<<<<<< ours
   // ── Main records table (handles pagination) ──────────────────
+=======
+  // ── Main records table ──────────────────────────────────
+>>>>>>> theirs
 
   _drawKhidmatTable(records, yStart, totalPages) {
     if (!records || records.length === 0) {
@@ -296,7 +380,10 @@ export class KhidmatPDFGenerator {
       y = this._drawTableRow(record, y, rowIndex++);
     }
 
+<<<<<<< ours
     // Border around body
+=======
+>>>>>>> theirs
     this.doc.rect(MARGIN, tableBodyStartY, USABLE_WIDTH, y - tableBodyStartY)
       .stroke(this.midGray);
 
@@ -376,14 +463,25 @@ export class KhidmatPDFGenerator {
     return y + 10;
   }
 
+<<<<<<< ours
   // ── Category breakdown table ─────────────────────────────────
+=======
+  // ── Category breakdown with bilingual support ─────────────────
+>>>>>>> theirs
 
   _drawCategoryBreakdown(records, yStart, totalPages) {
     const map = new Map();
     records.forEach(r => {
+<<<<<<< ours
       const cat = r.category?.nameUrdu || r.category?.name || 'Uncategorized';
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat).push(r);
+=======
+      const cat = r.category;
+      const catKey = cat?.id || 'uncategorized';
+      if (!map.has(catKey)) map.set(catKey, []);
+      map.get(catKey).push(r);
+>>>>>>> theirs
     });
     if (map.size === 0) return yStart;
 
@@ -418,7 +516,11 @@ export class KhidmatPDFGenerator {
 
     y = printHead(y);
     let idx = 0;
+<<<<<<< ours
     for (const [catName, recs] of map.entries()) {
+=======
+    for (const [catKey, recs] of map.entries()) {
+>>>>>>> theirs
       if (y + ROW_H > CONTENT_BOT) {
         this._writeFooter(this._pageCount, totalPages);
         y = this._newPage();
@@ -427,8 +529,19 @@ export class KhidmatPDFGenerator {
       }
       if (idx % 2 === 0) this.doc.rect(MARGIN, y, USABLE_WIDTH, ROW_H).fill(this.lightGray);
 
+<<<<<<< ours
       const catTotal = recs.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
       const row = [catName, recs.length.toString(), `Rs ${this._formatAmount(catTotal)}`];
+=======
+      const cat = recs[0]?.category;
+      let catDisplay = cat?.name || 'Uncategorized';
+      if (cat?.nameUrdu && cat.nameUrdu !== cat.name) {
+        catDisplay = `${cat.name} / ${cat.nameUrdu}`;
+      }
+
+      const catTotal = recs.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+      const row = [catDisplay, recs.length.toString(), `Rs ${this._formatAmount(catTotal)}`];
+>>>>>>> theirs
 
       this.doc.fontSize(9).font('Helvetica').fillColor(this.textColor);
       let sx = MARGIN;
@@ -454,16 +567,24 @@ export class KhidmatPDFGenerator {
     let pages = 1;
     let y = firstContentY;
 
+<<<<<<< ours
     // Summary cards
     y += 58 + 8;
 
     // Filter bar
+=======
+    y += 58 + 8;
+
+>>>>>>> theirs
     const hasFilters = Object.entries(filters).some(
       ([k, v]) => v && v !== '' && !['limit', 'page', 'categoryId'].includes(k)
     );
     if (hasFilters) y += 36 + 8;
 
+<<<<<<< ours
     // Main table
+=======
+>>>>>>> theirs
     y += 20 + HDR_H;
     for (let i = 0; i < records.length; i++) {
       if (y + ROW_H > CONTENT_BOT) { pages++; y = PAGE_TOP + HDR_H; }
@@ -471,11 +592,17 @@ export class KhidmatPDFGenerator {
     }
     y += 10;
 
+<<<<<<< ours
     // Total banner
     if (y + 46 > CONTENT_BOT) { pages++; y = PAGE_TOP; }
     y += 46 + 10;
 
     // Status breakdown
+=======
+    if (y + 46 > CONTENT_BOT) { pages++; y = PAGE_TOP; }
+    y += 46 + 10;
+
+>>>>>>> theirs
     const statusSet = new Set(records.map(r => r.status));
     if (statusSet.size > 0) {
       if (y + 60 > CONTENT_BOT) { pages++; y = PAGE_TOP; }
@@ -487,8 +614,12 @@ export class KhidmatPDFGenerator {
       y += 10;
     }
 
+<<<<<<< ours
     // Category breakdown
     const catSet = new Set(records.map(r => r.category?.nameUrdu || r.category?.name || 'Uncategorized'));
+=======
+    const catSet = new Set(records.map(r => r.category?.id || 'uncategorized'));
+>>>>>>> theirs
     if (catSet.size > 0) {
       if (y + 60 > CONTENT_BOT) { pages++; y = PAGE_TOP; }
       y += 22 + HDR_H;
@@ -517,7 +648,10 @@ export class KhidmatPDFGenerator {
         this.doc.on('end',   () => resolve(Buffer.concat(chunks)));
         this.doc.on('error', reject);
 
+<<<<<<< ours
         // ── First page ───────────────────────────────────────
+=======
+>>>>>>> theirs
         this.doc.addPage();
         this._pageCount = 1;
         this.doc.rect(0, 0, A4_WIDTH, 10).fill(this.primaryColor);
@@ -538,11 +672,17 @@ export class KhidmatPDFGenerator {
         y = this._drawFilterSummary(filters, y);
         y += 8;
 
+<<<<<<< ours
         // Main table
         const { y: afterTable, totalAmount } = this._drawKhidmatTable(records, y, totalPages);
         y = afterTable;
 
         // Grand total banner
+=======
+        const { y: afterTable, totalAmount } = this._drawKhidmatTable(records, y, totalPages);
+        y = afterTable;
+
+>>>>>>> theirs
         if (y + 46 > CONTENT_BOT) {
           this._writeFooter(this._pageCount, totalPages);
           y = this._newPage();
@@ -550,10 +690,14 @@ export class KhidmatPDFGenerator {
         y = this._drawTotalBanner(totalAmount, y);
         y += 10;
 
+<<<<<<< ours
         // Status breakdown
         y = this._drawStatusBreakdown(records, y, totalPages);
 
         // Category breakdown
+=======
+        y = this._drawStatusBreakdown(records, y, totalPages);
+>>>>>>> theirs
         this._drawCategoryBreakdown(records, y, totalPages);
 
         this._writeFooter(this._pageCount, totalPages);
@@ -619,7 +763,11 @@ export class KhidmatPDFGenerator {
   }
 
   // ─────────────────────────────────────────────────────────────
+<<<<<<< ours
   // PUBLIC: Single Record Receipt (A5-style on A4)
+=======
+  // PUBLIC: Single Record Receipt (with bilingual support)
+>>>>>>> theirs
   // ─────────────────────────────────────────────────────────────
   async generateKhidmatReceipt(record, organizationName) {
     if (organizationName) this.organizationName = organizationName;
@@ -637,6 +785,7 @@ export class KhidmatPDFGenerator {
         this.doc.addPage();
         this._pageCount = 1;
 
+<<<<<<< ours
         // ── Top bar ──────────────────────────────────────────
         this.doc.rect(0, 0, A4_WIDTH, 10).fill(this.primaryColor);
         this.doc.rect(0, 10, A4_WIDTH, 4).fill(this.accentColor);
@@ -646,6 +795,14 @@ export class KhidmatPDFGenerator {
 
         // ── Receipt card ─────────────────────────────────────
         const cardH = 340;
+=======
+        this.doc.rect(0, 0, A4_WIDTH, 10).fill(this.primaryColor);
+        this.doc.rect(0, 10, A4_WIDTH, 4).fill(this.accentColor);
+
+        let y = this._drawPageHeader('Khidmat Service Record', 'Individual Record');
+
+        const cardH = 370;
+>>>>>>> theirs
         this.doc.roundedRect(MARGIN, y, USABLE_WIDTH, cardH, 8)
           .fillAndStroke(this.lightGray, this.accentColor);
 
@@ -663,6 +820,7 @@ export class KhidmatPDFGenerator {
           ry += gap;
         };
 
+<<<<<<< ours
         const catName = record.category?.nameUrdu || record.category?.name || 'General';
 
         field('Name',         record.name);
@@ -670,11 +828,34 @@ export class KhidmatPDFGenerator {
         field('Address',      record.address || 'N/A');
         field('Category',     catName);
         field('Amount',       `Rs ${this._formatAmount(record.amount)}`);
+=======
+        // Bilingual name display
+        const nameDisplay = record.nameUrdu && record.nameUrdu !== record.name
+          ? `${record.name} / ${record.nameUrdu}`
+          : record.name || 'N/A';
+
+        const catName = record.category?.name || 'General';
+        const catNameUrdu = record.category?.nameUrdu;
+        const categoryDisplay = catNameUrdu && catNameUrdu !== catName
+          ? `${catName} / ${catNameUrdu}`
+          : catName;
+
+        field('Name',         nameDisplay);
+        field('Phone',        record.phone);
+        field('Address',      record.address || 'N/A');
+        field('Category',     categoryDisplay);
+        field('Amount',       `Rs ${this._formatAmount(record.amount)}`);
+        field('Received',     `Rs ${this._formatAmount(record.receivedAmount || 0)}`);
+        field('Remaining',    `Rs ${this._formatAmount((record.amount || 0) - (record.receivedAmount || 0))}`);
+>>>>>>> theirs
         field('Status',       this._statusLabel(record.status));
         field('Date',         this._formatDate(record.date || record.createdAt));
         if (record.notes) field('Notes', record.notes);
 
+<<<<<<< ours
         // ── Status badge ─────────────────────────────────────
+=======
+>>>>>>> theirs
         const badgeColors = {
           COMPLETED:   { bg: '#dcfce7', border: '#22c55e', text: '#15803d' },
           PARTIAL:     { bg: '#fef9c3', border: '#eab308', text: '#854d0e' },
@@ -687,7 +868,10 @@ export class KhidmatPDFGenerator {
         this.doc.fontSize(10).font('Helvetica-Bold').fillColor(bc.text)
           .text(this._statusLabel(record.status), lX, bY + 8, { width: 160, align: 'center', lineBreak: false });
 
+<<<<<<< ours
         // ── Footer ───────────────────────────────────────────
+=======
+>>>>>>> theirs
         this._writeFooter(1, 1);
         this.doc.end();
 
@@ -699,7 +883,11 @@ export class KhidmatPDFGenerator {
   }
 
   // ─────────────────────────────────────────────────────────────
+<<<<<<< ours
   // PUBLIC: Grouped by Person Report (all people)
+=======
+  // PUBLIC: Grouped by Person Report
+>>>>>>> theirs
   // ─────────────────────────────────────────────────────────────
   async generateByPersonReport(people, filters = {}, organizationName) {
     if (organizationName) this.organizationName = organizationName;
@@ -725,14 +913,27 @@ export class KhidmatPDFGenerator {
             y = this._drawPageHeader('Khidmat Records by Person (cont.)', yearLabel);
           }
 
+<<<<<<< ours
           // Person header
           this.doc.roundedRect(MARGIN, y, USABLE_WIDTH, 26, 4).fill(this.lightGray);
           this._pdfText(`${person.name}  ·  ${person.phone}`, MARGIN + 10, y + 8, {
+=======
+          // Person header with bilingual name
+          const personNameDisplay = person.nameUrdu && person.nameUrdu !== person.name
+            ? `${person.name} / ${person.nameUrdu}`
+            : person.name;
+          
+          this.doc.roundedRect(MARGIN, y, USABLE_WIDTH, 26, 4).fill(this.lightGray);
+          this._pdfText(`${personNameDisplay}  ·  ${person.phone}`, MARGIN + 10, y + 8, {
+>>>>>>> theirs
             size: 10, bold: true, width: USABLE_WIDTH - 20, color: this.primaryColor,
           });
           y += 32;
 
+<<<<<<< ours
           // Mini table header
+=======
+>>>>>>> theirs
           const miniCols = [80, 100, 80, 80, 75];
           const miniHdrs = ['Date', 'Category', 'Pledged', 'Received', 'Status'];
           let x = MARGIN;
@@ -745,10 +946,20 @@ export class KhidmatPDFGenerator {
           y += HDR_H;
 
           for (const rec of person.records) {
+<<<<<<< ours
             const catLabel = rec.category?.nameUrdu || rec.category?.name || '—';
             const cells = [
               this._formatDate(rec.date),
               this._truncate(catLabel, 14),
+=======
+            const catLabel = rec.category?.nameUrdu && rec.category?.nameUrdu !== rec.category?.name
+              ? `${rec.category.name} / ${rec.category.nameUrdu}`
+              : rec.category?.name || '—';
+            
+            const cells = [
+              this._formatDate(rec.date),
+              this._truncate(catLabel, 18),
+>>>>>>> theirs
               `Rs ${this._formatAmount(rec.amount)}`,
               `Rs ${this._formatAmount(rec.receivedAmount)}`,
               this._statusLabel(rec.status),
@@ -766,7 +977,10 @@ export class KhidmatPDFGenerator {
             y += ROW_H;
           }
 
+<<<<<<< ours
           // Person totals
+=======
+>>>>>>> theirs
           this.doc.fontSize(8).font('Helvetica-Bold').fillColor(this.darkGray)
             .text(
               `Total: Rs ${this._formatAmount(person.totalPledged)} pledged · Rs ${this._formatAmount(person.totalReceived)} received · Rs ${this._formatAmount(person.totalRemaining)} remaining`,
@@ -775,7 +989,10 @@ export class KhidmatPDFGenerator {
           y += 28;
         }
 
+<<<<<<< ours
         // Footers on all pages
+=======
+>>>>>>> theirs
         for (let p = 1; p <= this._pageCount; p++) {
           this.doc.switchToPage(p - 1);
           this._writeFooter(p, this._pageCount);
@@ -811,12 +1028,24 @@ export class KhidmatPDFGenerator {
         this.doc.rect(0, 0, A4_WIDTH, 10).fill(this.primaryColor);
         this.doc.rect(0, 10, A4_WIDTH, 4).fill(this.accentColor);
 
+<<<<<<< ours
         let y = this._drawPageHeader(
           'Khidmat Records',
           `${person.name} · ${person.phone}${yearLabel ? ` · ${yearLabel}` : ''}`
         );
 
         // Summary box
+=======
+        const personNameDisplay = person.nameUrdu && person.nameUrdu !== person.name
+          ? `${person.name} / ${person.nameUrdu}`
+          : person.name;
+
+        let y = this._drawPageHeader(
+          'Khidmat Records',
+          `${personNameDisplay} · ${person.phone}${yearLabel ? ` · ${yearLabel}` : ''}`
+        );
+
+>>>>>>> theirs
         this.doc.roundedRect(MARGIN, y, USABLE_WIDTH, 50, 6).fill(this.lightGray);
         this.doc.fontSize(9).font('Helvetica').fillColor(this.darkGray)
           .text(`Records: ${person.recordCount}`, MARGIN + 15, y + 12)
@@ -825,7 +1054,10 @@ export class KhidmatPDFGenerator {
           .text(`Remaining: Rs ${this._formatAmount(person.totalRemaining)}`, MARGIN + 200, y + 28);
         y += 65;
 
+<<<<<<< ours
         // Full table
+=======
+>>>>>>> theirs
         y = this._drawTableHeader(y);
         let rowIndex = 0;
         for (const rec of person.records) {

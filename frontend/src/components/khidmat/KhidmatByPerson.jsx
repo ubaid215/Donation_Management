@@ -1,12 +1,21 @@
 // ============================================================
 // components/khidmat/KhidmatByPerson.jsx
+<<<<<<< ours
 // Yearly view grouped by person with search, filters, PDF
+=======
+// Updated with WhatsApp buttons for person and individual records
+>>>>>>> theirs
 // ============================================================
 
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   ChevronDown, ChevronRight, FileDown, Loader2,
+<<<<<<< ours
   User, Phone, MapPin, Calendar, AlertCircle, CheckCircle2, FileText
+=======
+  User, Phone, MapPin, Calendar, AlertCircle, CheckCircle2, FileText,
+  MessageCircle
+>>>>>>> theirs
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useKhidmat, STATUS_LABELS, STATUS_COLORS } from '../../context/KhidmatContext'
@@ -18,6 +27,11 @@ import {
   getKhidmatByPerson,
   downloadKhidmatByPersonReport,
   downloadKhidmatPersonReport,
+<<<<<<< ours
+=======
+  sendPersonWhatsApp,
+  sendKhidmatWhatsApp
+>>>>>>> theirs
 } from '../../services/khidmat.service'
 
 const STATUS_ICONS = {
@@ -33,6 +47,11 @@ const KhidmatByPerson = () => {
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState({})
   const [downloading, setDownloading] = useState(null)
+<<<<<<< ours
+=======
+  const [sendingPerson, setSendingPerson] = useState({})
+  const [sendingRecord, setSendingRecord] = useState({})
+>>>>>>> theirs
 
   const yearOptions = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i)
 
@@ -65,6 +84,48 @@ const KhidmatByPerson = () => {
     setExpanded(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+<<<<<<< ours
+=======
+  // ── Handle Send Person WhatsApp ──────────────
+  const handleSendPersonWhatsApp = async (phone, personName) => {
+    const key = phone.replace(/\D/g, '')
+    setSendingPerson(prev => ({ ...prev, [key]: true }))
+    const toastId = toast.loading(`Sending WhatsApp to ${personName}...`)
+    
+    try {
+      const result = await sendPersonWhatsApp(phone)
+      toast.success(
+        `✅ ${result.sent} messages sent to ${personName}`,
+        { id: toastId }
+      )
+      if (result.failed > 0) {
+        toast.error(`${result.failed} messages failed`, { id: toastId })
+      }
+      await loadData() // Refresh
+    } catch (err) {
+      toast.error(err.message || 'Failed to send WhatsApp', { id: toastId })
+    } finally {
+      setSendingPerson(prev => ({ ...prev, [key]: false }))
+    }
+  }
+
+  // ── Handle Send Record WhatsApp ──────────────
+  const handleSendRecordWhatsApp = async (recordId, recordName) => {
+    setSendingRecord(prev => ({ ...prev, [recordId]: true }))
+    const toastId = toast.loading(`Sending WhatsApp to ${recordName}...`)
+    
+    try {
+      await sendKhidmatWhatsApp(recordId)
+      toast.success(`WhatsApp sent to ${recordName}`, { id: toastId })
+      await loadData() // Refresh
+    } catch (err) {
+      toast.error(err.message || 'Failed to send WhatsApp', { id: toastId })
+    } finally {
+      setSendingRecord(prev => ({ ...prev, [recordId]: false }))
+    }
+  }
+
+>>>>>>> theirs
   const handleDownloadAll = async () => {
     setDownloading('all')
     const toastId = toast.loading('Generating PDF for all people…')
@@ -151,12 +212,24 @@ const KhidmatByPerson = () => {
           <div className="divide-y divide-slate-100">
             {people.map(person => {
               const isOpen = expanded[person.key]
+<<<<<<< ours
               return (
                 <div key={person.key}>
                   {/* Person header row */}
                   <div
                     className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors"
                     onClick={() => toggleExpand(person.key)}
+=======
+              const personKey = person.key
+              const isSendingPerson = sendingPerson[personKey]
+              
+              return (
+                <div key={personKey}>
+                  {/* Person header row */}
+                  <div
+                    className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors"
+                    onClick={() => toggleExpand(personKey)}
+>>>>>>> theirs
                   >
                     <button className="text-slate-400 shrink-0">
                       {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
@@ -165,7 +238,13 @@ const KhidmatByPerson = () => {
                       <User size={16} className="text-blue-700" />
                     </div>
                     <div className="flex-1 min-w-0">
+<<<<<<< ours
                       <p className={`text-sm font-semibold text-slate-800 ${urduClass(person.name)}`} dir={urduClass(person.name) ? 'rtl' : undefined}>{person.name}</p>
+=======
+                      <p className={`text-sm font-semibold text-slate-800 ${urduClass(person.name)}`} dir={urduClass(person.name) ? 'rtl' : undefined}>
+                        {person.name}
+                      </p>
+>>>>>>> theirs
                       <div className="flex flex-wrap items-center gap-3 mt-0.5">
                         <span className="text-xs text-slate-500 flex items-center gap-1">
                           <Phone size={11} /> {person.phone}
@@ -189,6 +268,7 @@ const KhidmatByPerson = () => {
                         Rs {person.totalRemaining?.toLocaleString('en-IN')} remaining
                       </p>
                     </div>
+<<<<<<< ours
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDownloadPerson(person) }}
                       disabled={downloading === person.key}
@@ -196,6 +276,33 @@ const KhidmatByPerson = () => {
                       title="Download PDF for this person"
                     >
                       {downloading === person.key
+=======
+                    
+                    {/* WhatsApp button for person */}
+                    <button
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        handleSendPersonWhatsApp(person.phone, person.name) 
+                      }}
+                      disabled={isSendingPerson}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 border border-green-200 text-xs font-medium transition-all disabled:opacity-50"
+                      title={`Send WhatsApp to all records of ${person.name}`}
+                    >
+                      {isSendingPerson 
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : <MessageCircle size={13} />}
+                      WhatsApp
+                    </button>
+                    
+                    {/* PDF button for person */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDownloadPerson(person) }}
+                      disabled={downloading === personKey}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:border-blue-300 hover:text-blue-700 transition-all disabled:opacity-50"
+                      title="Download PDF for this person"
+                    >
+                      {downloading === personKey
+>>>>>>> theirs
                         ? <Loader2 size={13} className="animate-spin" />
                         : <FileDown size={13} />}
                       PDF
@@ -211,6 +318,11 @@ const KhidmatByPerson = () => {
                         const pct = record.amount > 0
                           ? Math.min(100, Math.round((record.receivedAmount / record.amount) * 100))
                           : 0
+<<<<<<< ours
+=======
+                        const isSendingRecord = sendingRecord[record.id]
+                        
+>>>>>>> theirs
                         return (
                           <div
                             key={record.id}
@@ -221,9 +333,20 @@ const KhidmatByPerson = () => {
                               style={{ backgroundColor: record.category?.color || '#3b82f6' }}
                             />
                             <div className="flex-1 min-w-[140px]">
+<<<<<<< ours
                               <p className={`text-sm font-semibold text-slate-800 font-urdu`} dir="rtl">
                                 {getCategoryUrdu(record.category)}
                               </p>
+=======
+                              <p className="text-sm font-semibold text-slate-800">
+                                {record.category?.name || 'Uncategorized'}
+                              </p>
+                              {record.category?.nameUrdu && (
+                                <p className="text-xs text-slate-500 font-urdu" dir="rtl">
+                                  {record.category.nameUrdu}
+                                </p>
+                              )}
+>>>>>>> theirs
                               <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                                 <Calendar size={10} />
                                 {new Date(record.date).toLocaleDateString('en-GB', {
@@ -239,6 +362,26 @@ const KhidmatByPerson = () => {
                                 Rs {record.receivedAmount?.toLocaleString('en-IN')} received ({pct}%)
                               </p>
                             </div>
+<<<<<<< ours
+=======
+                            
+                            {/* WhatsApp button for individual record */}
+                            <button
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                handleSendRecordWhatsApp(record.id, record.name) 
+                              }}
+                              disabled={isSendingRecord}
+                              className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 text-xs font-medium transition-all disabled:opacity-50"
+                              title={`Send WhatsApp for this record`}
+                            >
+                              {isSendingRecord 
+                                ? <Loader2 size={11} className="animate-spin" />
+                                : <MessageCircle size={11} />}
+                              WhatsApp
+                            </button>
+                            
+>>>>>>> theirs
                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${colors.bg} ${colors.text} ${colors.border}`}>
                               <Icon size={11} />
                               {STATUS_LABELS[record.status]}
@@ -258,4 +401,8 @@ const KhidmatByPerson = () => {
   )
 }
 
+<<<<<<< ours
 export default KhidmatByPerson
+=======
+export default KhidmatByPerson
+>>>>>>> theirs

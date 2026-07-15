@@ -2,12 +2,36 @@ import { body, query, param, validationResult } from 'express-validator';
 
 export const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
+<<<<<<< ours
   if (!errors.isEmpty()) {
     return res.status(400).json({ 
       error: 'Validation failed',
       details: errors.array() 
     });
   }
+=======
+
+  console.log("========== VALIDATION ==========");
+  console.log("Method:", req.method);
+  console.log("URL:", req.originalUrl);
+  console.log("Params:", req.params);
+  console.log("Query:", req.query);
+  console.log("Body:", req.body);
+
+  if (!errors.isEmpty()) {
+    console.log(
+      "Validation Errors:",
+      JSON.stringify(errors.array(), null, 2)
+    );
+
+    return res.status(400).json({
+      error: "Validation failed",
+      details: errors.array()
+    });
+  }
+
+  console.log("Validation Passed");
+>>>>>>> theirs
   next();
 };
 

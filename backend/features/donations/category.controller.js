@@ -46,6 +46,7 @@ export const getActiveCategories = asyncHandler(async (req, res) => {
 });
 
 export const updateCategory = asyncHandler(async (req, res) => {
+<<<<<<< ours
   const ipAddress = req.ip || req.connection.remoteAddress;
   const category = await categoryService.updateCategory(
     req.params.id,
@@ -59,6 +60,39 @@ export const updateCategory = asyncHandler(async (req, res) => {
     message: 'Category updated successfully',
     category
   });
+=======
+  console.log("========== UPDATE CATEGORY ==========");
+  console.log("Params:", req.params);
+  console.log("Body:", req.body);
+  console.log("User:", req.user);
+
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  console.log("IP Address:", ipAddress);
+
+  try {
+    const category = await categoryService.updateCategory(
+      req.params.id,
+      req.body,
+      req.user.id,
+      ipAddress
+    );
+
+    console.log("Category updated successfully:", category);
+
+    res.json({
+      success: true,
+      message: "Category updated successfully",
+      category,
+    });
+  } catch (error) {
+    console.error("Error updating category:");
+    console.error("Message:", error.message);
+    console.error("Stack:", error.stack);
+    console.error("Full Error:", error);
+
+    throw error; // Let asyncHandler handle the response
+  }
+>>>>>>> theirs
 });
 
 export const deleteCategory = asyncHandler(async (req, res) => {

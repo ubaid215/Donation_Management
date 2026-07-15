@@ -1,23 +1,9 @@
-<<<<<<< ours
-/* eslint-disable no-unused-vars */
 // ============================================================
 // components/khidmat/BulkReminderBar.jsx
-// Enhanced with person selection capability
-// ============================================================
-
-import React, { useState, useEffect } from "react";
-=======
-/* eslint-disable react-hooks/set-state-in-effect */
-// ============================================================
-// components/khidmat/BulkReminderBar.jsx
-// FIXED: ESLint warnings resolved
-// - Removed setState from useEffect
-// - Fixed dependency array
-// - Proper state sync pattern
+// UPDATED: Added sendPersonWhatsApp functionality
 // ============================================================
 
 import React, { useState, useEffect, useRef } from "react";
->>>>>>> theirs
 import {
   Send,
   CheckCircle2,
@@ -32,23 +18,17 @@ import {
   CheckCheck,
   AlertTriangle,
   UserCheck,
-<<<<<<< ours
-  UserX,
-  Filter,
-} from "lucide-react";
-import { useKhidmat } from "../../context/KhidmatContext";
-
-const REMINDER_STATUSES = ['PARTIAL', 'RECORD_ONLY']
-=======
   Filter,
   Tag,
-  Clock
+  Clock,
+  User
 } from "lucide-react";
 import { useKhidmat } from "../../context/KhidmatContext";
 import { useDonations } from "../../context/DonationContext";
+import { sendPersonWhatsApp } from "../../services/khidmat.service";
+import toast from "react-hot-toast";
 
 const REMINDER_STATUSES = ['PARTIAL', 'RECORD_ONLY'];
->>>>>>> theirs
 
 const STATUS_CONFIG = {
   PARTIAL: {
@@ -58,10 +38,7 @@ const STATUS_CONFIG = {
     text: "text-amber-700",
     border: "border-amber-200",
     dot: "bg-amber-400",
-<<<<<<< ours
-=======
     description: "Partially paid"
->>>>>>> theirs
   },
   RECORD_ONLY: {
     label: "Pending",
@@ -70,10 +47,7 @@ const STATUS_CONFIG = {
     text: "text-slate-600",
     border: "border-slate-200",
     dot: "bg-slate-400",
-<<<<<<< ours
-=======
     description: "No payment yet"
->>>>>>> theirs
   },
   COMPLETED: {
     label: "Completed",
@@ -82,78 +56,51 @@ const STATUS_CONFIG = {
     text: "text-emerald-700",
     border: "border-emerald-200",
     dot: "bg-emerald-500",
-<<<<<<< ours
-=======
     description: "Fully paid"
->>>>>>> theirs
   },
 };
 
 const BulkReminderBar = () => {
   const {
     records,
-<<<<<<< ours
-    pagination,
-    filters,
-=======
     filters,
     fetchRecords,
     applyFilters,
->>>>>>> theirs
     sendBulkReminderMessages,
     sendingBulk,
     bulkPreview,
     fetchBulkPreview,
   } = useKhidmat();
-<<<<<<< ours
-
-  // Selection modes
-  const [selectionMode, setSelectionMode] = useState("status"); // 'status' or 'manual'
-  const [selectedStatuses, setSelectedStatuses] = useState([
-    "PARTIAL",
-    "RECORD_ONLY",
-  ]);
-  const [selectedPeople, setSelectedPeople] = useState([]); // Array of record IDs
-=======
   const { activeCategories } = useDonations();
 
   // ── State ──────────────────────────────────────────────
   const [selectionMode, setSelectionMode] = useState("status");
   const [selectedStatuses, setSelectedStatuses] = useState(["PARTIAL", "RECORD_ONLY"]);
   const [selectedPeople, setSelectedPeople] = useState([]);
-  // Initialize local category from filters
   const [selectedCategory, setSelectedCategory] = useState(filters.categoryId || "");
->>>>>>> theirs
   const [result, setResult] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showPersonSelector, setShowPersonSelector] = useState(false);
-<<<<<<< ours
-
-  // Fetch preview when selection changes
-=======
   const [isTemplateError, setIsTemplateError] = useState(false);
+  const [sendingPersonWhatsApp, setSendingPersonWhatsApp] = useState({});
   
   // Ref to prevent infinite loops
   const isSyncingRef = useRef(false);
 
-  // ── Sync local category with filters (FIXED) ──────────
-  // Use useRef to track if we're already syncing
+  // ── Sync local category with filters ──────────────────
   useEffect(() => {
-    // Only sync if the filter changed externally and we're not already syncing
     if (filters.categoryId !== selectedCategory && !isSyncingRef.current) {
       isSyncingRef.current = true;
       setSelectedCategory(filters.categoryId || "");
-      // Reset the ref after state update
       setTimeout(() => {
         isSyncingRef.current = false;
       }, 0);
     }
   }, [filters.categoryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Handle category change - sync with main filters ────
+  // ── Handle category change ────────────────────────────
   const handleCategoryChange = (categoryId) => {
-    // Set the ref to prevent the effect from trying to sync back
     isSyncingRef.current = true;
     
     setSelectedCategory(categoryId);
@@ -161,32 +108,24 @@ const BulkReminderBar = () => {
     setShowConfirm(false);
     setIsTemplateError(false);
     
-    // Apply filter to main table
     const updatedFilters = applyFilters({ 
       categoryId: categoryId || '', 
       page: 1 
     });
     
-    // Fetch records with new category filter
     fetchRecords(updatedFilters);
     
-    // Reset the ref after state updates
     setTimeout(() => {
       isSyncingRef.current = false;
     }, 0);
   };
 
   // ── Fetch preview when selection changes ───────────────
->>>>>>> theirs
   useEffect(() => {
     if (selectionMode === "status" && selectedStatuses.length > 0) {
       fetchBulkPreview({
         statuses: selectedStatuses,
-<<<<<<< ours
-        categoryId: filters.categoryId,
-=======
         categoryId: selectedCategory || filters.categoryId,
->>>>>>> theirs
         startDate: filters.startDate,
         endDate: filters.endDate,
       });
@@ -194,24 +133,13 @@ const BulkReminderBar = () => {
   }, [
     selectionMode,
     selectedStatuses,
-<<<<<<< ours
-=======
     selectedCategory,
->>>>>>> theirs
     filters.categoryId,
     filters.startDate,
     filters.endDate,
     fetchBulkPreview,
   ]);
 
-<<<<<<< ours
-  const toggleStatus = (s) => {
-    setSelectedStatuses((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
-    );
-    setResult(null);
-    setShowConfirm(false);
-=======
   // ── Toggle functions ────────────────────────────────────
   const toggleStatus = (status) => {
     setSelectedStatuses((prev) =>
@@ -220,26 +148,12 @@ const BulkReminderBar = () => {
     setResult(null);
     setShowConfirm(false);
     setIsTemplateError(false);
->>>>>>> theirs
   };
 
   const togglePerson = (recordId) => {
     setSelectedPeople((prev) =>
       prev.includes(recordId)
         ? prev.filter((id) => id !== recordId)
-<<<<<<< ours
-        : [...prev, recordId],
-    );
-    setResult(null);
-    setShowConfirm(false);
-  };
-
-  const selectAllCurrentRecords = () => {
-    const eligibleIds = eligibleRecords.map((r) => r.id)
-    setSelectedPeople(eligibleIds)
-    setShowPersonSelector(false)
-  }
-=======
         : [...prev, recordId]
     );
     setResult(null);
@@ -252,14 +166,11 @@ const BulkReminderBar = () => {
     setSelectedPeople(eligibleIds);
     setShowPersonSelector(false);
   };
->>>>>>> theirs
 
   const clearSelection = () => {
     setSelectedPeople([]);
   };
 
-<<<<<<< ours
-=======
   const dismiss = () => {
     setResult(null);
     setShowConfirm(false);
@@ -267,8 +178,65 @@ const BulkReminderBar = () => {
     setIsTemplateError(false);
   };
 
-  // ── Handle Send ──────────────────────────────────────────
->>>>>>> theirs
+  // ── NEW: Send WhatsApp to a single person ──────────────
+  const handleSendPersonWhatsApp = async (phone, personName, recordIds) => {
+    const key = phone.replace(/\D/g, '');
+    setSendingPersonWhatsApp(prev => ({ ...prev, [key]: true }));
+    
+    const toastId = toast.loading(`Sending WhatsApp to ${personName}...`);
+    
+    try {
+      // Send to all records of this person
+      const result = await sendPersonWhatsApp(phone);
+      
+      if (result.sent > 0) {
+        toast.success(
+          `✅ ${result.sent} message${result.sent > 1 ? 's' : ''} sent to ${personName}`,
+          { id: toastId }
+        );
+      }
+      
+      if (result.failed > 0) {
+        toast.error(
+          `❌ ${result.failed} message${result.failed > 1 ? 's' : ''} failed for ${personName}`,
+          { id: toastId }
+        );
+      }
+      
+      // Refresh records to update WhatsApp statuses
+      await fetchRecords();
+      
+      // Remove the person from selection if they were selected
+      if (recordIds) {
+        setSelectedPeople(prev => prev.filter(id => !recordIds.includes(id)));
+      }
+      
+      return result;
+    } catch (err) {
+      const errorMsg = err.message || '';
+      const isTemplateErr = 
+        errorMsg.toLowerCase().includes('template') ||
+        errorMsg.toLowerCase().includes('130472') ||
+        errorMsg.toLowerCase().includes('not found');
+      
+      toast.error(
+        isTemplateErr
+          ? 'WhatsApp template not configured. Please configure it in Meta Business Manager.'
+          : errorMsg || 'Failed to send WhatsApp',
+        { id: toastId }
+      );
+      
+      if (isTemplateErr) {
+        setIsTemplateError(true);
+      }
+      
+      throw err;
+    } finally {
+      setSendingPersonWhatsApp(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  // ── Handle Bulk Send ──────────────────────────────────────
   const handleSend = async () => {
     if (!showConfirm) {
       setShowConfirm(true);
@@ -277,58 +245,23 @@ const BulkReminderBar = () => {
 
     setResult(null);
     setShowConfirm(false);
-<<<<<<< ours
-=======
     setIsTemplateError(false);
->>>>>>> theirs
 
     try {
       let res;
       if (selectionMode === "status") {
-<<<<<<< ours
-        // Send by status filter
-        res = await sendBulkReminderMessages({
-          statuses: selectedStatuses,
-          categoryId: filters.categoryId || undefined,
-=======
         res = await sendBulkReminderMessages({
           statuses: selectedStatuses,
           categoryId: selectedCategory || filters.categoryId || undefined,
->>>>>>> theirs
           startDate: filters.startDate || undefined,
           endDate: filters.endDate || undefined,
         });
       } else {
-<<<<<<< ours
-        // Send to selected people
-=======
->>>>>>> theirs
         res = await sendBulkReminderMessages({
           recordIds: selectedPeople,
         });
       }
 
-<<<<<<< ours
-      setResult(res);
-      setExpanded(true);
-      
-      // Clear selection after successful send
-      if (selectionMode === "manual") {
-        setSelectedPeople([]);
-      }
-    } catch (err) {
-      setResult({ error: err.message });
-    }
-  };
-
-  const dismiss = () => {
-    setResult(null);
-    setShowConfirm(false);
-    setExpanded(false);
-  };
-
-  // Get preview count based on selection mode
-=======
       const allFailed = res.sent === 0 && res.failed > 0;
       const hasTemplateError = res.results?.some(r => 
         r.error?.toLowerCase().includes('template') || 
@@ -365,7 +298,6 @@ const BulkReminderBar = () => {
   };
 
   // ── Computed values ─────────────────────────────────────
->>>>>>> theirs
   const getPreviewCount = () => {
     if (selectionMode === "status") {
       return bulkPreview?.total ?? 0;
@@ -377,29 +309,6 @@ const BulkReminderBar = () => {
   const previewCount = getPreviewCount();
 
   // Only pending & partial records are eligible for reminders
-<<<<<<< ours
-  const eligibleRecords = records.filter((r) => REMINDER_STATUSES.includes(r.status))
-
-  // Get the list of selected people details
-  const selectedPeopleDetails = eligibleRecords.filter((r) =>
-    selectedPeople.includes(r.id),
-  );
-
-  return (
-    <div
-      className={`
-      rounded-2xl border transition-all duration-300
-      ${
-        result?.error
-          ? "border-red-200 bg-red-50"
-          : result
-            ? "border-emerald-200 bg-emerald-50/60"
-            : "border-blue-100 bg-blue-50/40"
-      }
-    `}
-    >
-      {/* ── Main bar ──────────────────────────── */}
-=======
   const eligibleRecords = records.filter((r) => REMINDER_STATUSES.includes(r.status));
 
   const selectedPeopleDetails = eligibleRecords.filter((r) =>
@@ -412,6 +321,27 @@ const BulkReminderBar = () => {
     const cat = activeCategories.find(c => c.id === selectedCategory);
     return cat?.name || "Unknown Category";
   };
+
+  // ── Group people by phone for unique selection ──────────
+  const getUniquePeople = () => {
+    const peopleMap = new Map();
+    eligibleRecords.forEach(record => {
+      const phoneKey = record.phone?.replace(/\D/g, '') || record.id;
+      if (!peopleMap.has(phoneKey)) {
+        peopleMap.set(phoneKey, {
+          phone: record.phone,
+          name: record.name,
+          recordIds: [record.id],
+          status: record.status
+        });
+      } else {
+        peopleMap.get(phoneKey).recordIds.push(record.id);
+      }
+    });
+    return Array.from(peopleMap.values());
+  };
+
+  const uniquePeople = getUniquePeople();
 
   return (
     <div
@@ -429,7 +359,6 @@ const BulkReminderBar = () => {
       `}
     >
       {/* ── Main bar ──────────────────────────────────────── */}
->>>>>>> theirs
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         {/* Icon + label */}
         <div className="flex items-center gap-2 shrink-0">
@@ -452,10 +381,7 @@ const BulkReminderBar = () => {
               setShowPersonSelector(false);
               setResult(null);
               setShowConfirm(false);
-<<<<<<< ours
-=======
               setIsTemplateError(false);
->>>>>>> theirs
             }}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               selectionMode === "status"
@@ -471,10 +397,7 @@ const BulkReminderBar = () => {
               setSelectionMode("manual");
               setResult(null);
               setShowConfirm(false);
-<<<<<<< ours
-=======
               setIsTemplateError(false);
->>>>>>> theirs
             }}
             className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
               selectionMode === "manual"
@@ -493,42 +416,6 @@ const BulkReminderBar = () => {
             {Object.entries(STATUS_CONFIG)
               .filter(([key]) => REMINDER_STATUSES.includes(key))
               .map(([key, cfg]) => {
-<<<<<<< ours
-              const Icon = cfg.icon;
-              const active = selectedStatuses.includes(key);
-              return (
-                <button
-                  key={key}
-                  onClick={() => toggleStatus(key)}
-                  disabled={sendingBulk}
-                  className={`
-                    flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold border transition-all
-                    ${
-                      active
-                        ? `${cfg.bg} ${cfg.text} ${cfg.border} shadow-sm`
-                        : "bg-white text-slate-400 border-slate-200 hover:border-slate-300"
-                    }
-                    ${
-                      sendingBulk
-                        ? "opacity-50 cursor-not-allowed"
-                        : "cursor-pointer"
-                    }
-                  `}
-                >
-                  <Icon size={11} strokeWidth={active ? 2.5 : 2} />
-                  {cfg.label}
-                  {active && (
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${cfg.dot} ml-0.5`}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-=======
                 const Icon = cfg.icon;
                 const active = selectedStatuses.includes(key);
                 return (
@@ -563,7 +450,7 @@ const BulkReminderBar = () => {
           </div>
         )}
 
-        {/* Category Filter - Syncs with main table */}
+        {/* Category Filter */}
         <div className="flex items-center gap-1.5 shrink-0">
           <Tag size={12} className="text-slate-400" />
           <select
@@ -590,7 +477,6 @@ const BulkReminderBar = () => {
           )}
         </div>
 
->>>>>>> theirs
         {/* Person selection (only in manual mode) */}
         {selectionMode === "manual" && (
           <div className="relative flex-1 min-w-0">
@@ -620,91 +506,83 @@ const BulkReminderBar = () => {
               <div className="absolute z-50 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
                 <div className="p-3 border-b border-slate-100 flex justify-between items-center">
                   <span className="text-xs font-semibold text-slate-600">
-<<<<<<< ours
-                    Select Recipients
-=======
                     Select Recipients {selectedCategory && `(${getSelectedCategoryName()})`}
->>>>>>> theirs
                   </span>
-                  <button
-                    onClick={selectAllCurrentRecords}
-                    className="text-xs text-blue-600 hover:text-blue-700"
-                  >
-                    Select All ({eligibleRecords.length})
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={selectAllCurrentRecords}
+                      className="text-xs text-blue-600 hover:text-blue-700"
+                    >
+                      Select All ({eligibleRecords.length})
+                    </button>
+                  </div>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
                   {eligibleRecords.length === 0 ? (
                     <p className="px-3 py-4 text-xs text-slate-400 text-center">
-<<<<<<< ours
-                      No pending or partial records on this page
-                    </p>
-                  ) : eligibleRecords.map((record) => (
-                    <label
-                      key={record.id}
-                      className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedPeople.includes(record.id)}
-                        onChange={() => togglePerson(record.id)}
-                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-slate-700">
-                          {record.name}
-                        </p>
-                        <p className="text-xs text-slate-400">{record.phone}</p>
-                      </div>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full ${
-                          record.status === "COMPLETED"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : record.status === "PARTIAL"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {STATUS_CONFIG[record.status]?.label}
-                      </span>
-                    </label>
-                  ))}
-=======
                       No pending or partial records {selectedCategory ? 'in this category' : ''}
                     </p>
                   ) : (
-                    eligibleRecords.map((record) => (
-                      <label
-                        key={record.id}
-                        className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedPeople.includes(record.id)}
-                          onChange={() => togglePerson(record.id)}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-slate-700">
-                            {record.name}
-                          </p>
-                          <p className="text-xs text-slate-400">{record.phone}</p>
-                        </div>
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full ${
-                            record.status === "COMPLETED"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : record.status === "PARTIAL"
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-slate-100 text-slate-600"
-                          }`}
+                    // Show unique people with their record count
+                    uniquePeople.map((person) => {
+                      const isSelected = person.recordIds.some(id => selectedPeople.includes(id));
+                      const isSending = sendingPersonWhatsApp[person.phone?.replace(/\D/g, '') || ''];
+                      
+                      return (
+                        <div
+                          key={person.phone}
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 border-b border-slate-50"
                         >
-                          {STATUS_CONFIG[record.status]?.label || record.status}
-                        </span>
-                      </label>
-                    ))
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              if (isSelected) {
+                                setSelectedPeople(prev => 
+                                  prev.filter(id => !person.recordIds.includes(id))
+                                );
+                              } else {
+                                setSelectedPeople(prev => [...prev, ...person.recordIds]);
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-700">
+                              {person.name}
+                            </p>
+                            <p className="text-xs text-slate-400">{person.phone}</p>
+                          </div>
+                          <span className="text-[10px] text-slate-400">
+                            {person.recordIds.length} record{person.recordIds.length > 1 ? 's' : ''}
+                          </span>
+                          {/* ── NEW: Send WhatsApp to this person ── */}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await handleSendPersonWhatsApp(
+                                person.phone,
+                                person.name,
+                                person.recordIds
+                              );
+                            }}
+                            disabled={isSending}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-100 text-green-700 
+                                     hover:bg-green-200 border border-green-200 text-xs font-medium 
+                                     transition-all disabled:opacity-50"
+                            title={`Send WhatsApp to all records of ${person.name}`}
+                          >
+                            {isSending ? (
+                              <Loader2 size={11} className="animate-spin" />
+                            ) : (
+                              <MessageCircle size={11} />
+                            )}
+                            Send
+                          </button>
+                        </div>
+                      );
+                    })
                   )}
->>>>>>> theirs
                 </div>
                 <div className="p-3 border-t border-slate-100 bg-slate-50">
                   <button
@@ -739,15 +617,12 @@ const BulkReminderBar = () => {
                   {result.failed} failed
                 </span>
               )}
-<<<<<<< ours
-=======
               {result.skipped > 0 && (
                 <span className="flex items-center gap-1 text-slate-400">
                   <Clock size={13} />
                   {result.skipped} skipped
                 </span>
               )}
->>>>>>> theirs
             </div>
           )}
 
@@ -764,13 +639,7 @@ const BulkReminderBar = () => {
           {!result && (
             <button
               onClick={handleSend}
-<<<<<<< ours
-              disabled={
-                sendingBulk || previewCount === 0
-              }
-=======
               disabled={sendingBulk || previewCount === 0}
->>>>>>> theirs
               className={`
                 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm
                 ${
@@ -813,9 +682,6 @@ const BulkReminderBar = () => {
         </div>
       </div>
 
-<<<<<<< ours
-      {/* Selected People Summary (manual mode) */}
-=======
       {/* ── Active Category Indicator ────────────────────── */}
       {selectedCategory && (
         <div className="mx-4 mb-2 px-3 py-1.5 bg-blue-100 border border-blue-200 rounded-lg flex items-center gap-2">
@@ -836,16 +702,11 @@ const BulkReminderBar = () => {
       )}
 
       {/* ── Selected People Summary ───────────────────────── */}
->>>>>>> theirs
       {selectionMode === "manual" && selectedPeople.length > 0 && !showConfirm && !result && (
         <div className="mx-4 mb-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-xs text-blue-700 font-medium flex items-center gap-1">
             <UserCheck size={12} />
-<<<<<<< ours
-            Selected: {selectedPeople.length} person(s)
-=======
             Selected: {selectedPeople.length} person(s) {selectedCategory && `in ${getSelectedCategoryName()}`}
->>>>>>> theirs
           </p>
           <div className="flex flex-wrap gap-1 mt-1">
             {selectedPeopleDetails.slice(0, 5).map((person) => (
@@ -862,19 +723,11 @@ const BulkReminderBar = () => {
         </div>
       )}
 
-<<<<<<< ours
-      {/* Confirm callout */}
-      {showConfirm && !sendingBulk && previewCount > 0 && (
-        <div className="mx-4 mb-3 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
-          <AlertCircle size={14} className="text-amber-500 shrink-0" />
-          <p className="text-xs text-amber-700 font-medium">
-=======
       {/* ── Confirm callout ────────────────────────────────── */}
       {showConfirm && !sendingBulk && previewCount > 0 && (
         <div className="mx-4 mb-3 px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
           <AlertCircle size={14} className="text-amber-500 shrink-0" />
           <p className="text-xs text-amber-700 font-medium flex-1">
->>>>>>> theirs
             {selectionMode === "status" ? (
               <>
                 This will send WhatsApp messages to <strong>{previewCount}</strong>{" "}
@@ -882,53 +735,29 @@ const BulkReminderBar = () => {
                 with status{" "}
                 <strong>
                   {selectedStatuses
-<<<<<<< ours
-                    .map((s) => STATUS_CONFIG[s]?.label)
-                    .join(" & ")}
-                </strong>
-                {filters.categoryId ? " in selected category" : ""}.
-=======
                     .map((s) => STATUS_CONFIG[s]?.label || s)
                     .join(" & ")}
                 </strong>
                 {selectedCategory ? ` in <strong>${getSelectedCategoryName()}</strong>` : ""}.
->>>>>>> theirs
               </>
             ) : (
               <>
                 This will send WhatsApp messages to <strong>{previewCount}</strong>{" "}
-<<<<<<< ours
-                selected person{previewCount !== 1 ? "s" : ""}.
-=======
                 selected person{previewCount !== 1 ? "s" : ""}
                 {selectedCategory ? ` in <strong>${getSelectedCategoryName()}</strong>` : ""}.
->>>>>>> theirs
               </>
             )}
             Click <strong>Confirm Send</strong> to proceed.
           </p>
           <button
             onClick={() => setShowConfirm(false)}
-<<<<<<< ours
-            className="ml-auto text-amber-400 hover:text-amber-600"
-=======
             className="text-amber-400 hover:text-amber-600"
->>>>>>> theirs
           >
             <X size={13} />
           </button>
         </div>
       )}
 
-<<<<<<< ours
-      {/* No records message */}
-      {showConfirm && !sendingBulk && previewCount === 0 && (
-        <div className="mx-4 mb-3 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2">
-          <AlertCircle size={14} className="text-slate-400 shrink-0" />
-          <p className="text-xs text-slate-600 font-medium">
-            {selectionMode === "status"
-              ? "No records found with selected statuses."
-=======
       {/* ── No records message ────────────────────────────── */}
       {showConfirm && !sendingBulk && previewCount === 0 && (
         <div className="mx-4 mb-3 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2">
@@ -936,26 +765,17 @@ const BulkReminderBar = () => {
           <p className="text-xs text-slate-600 font-medium flex-1">
             {selectionMode === "status"
               ? `No records found with selected statuses${selectedCategory ? ` in ${getSelectedCategoryName()}` : ''}.`
->>>>>>> theirs
               : "No people selected. Please select recipients first."}
           </p>
           <button
             onClick={() => setShowConfirm(false)}
-<<<<<<< ours
-            className="ml-auto text-slate-400 hover:text-slate-600"
-=======
             className="text-slate-400 hover:text-slate-600"
->>>>>>> theirs
           >
             <X size={13} />
           </button>
         </div>
       )}
 
-<<<<<<< ours
-      {/* Error display (same as before) */}
-      {result?.error && (
-=======
       {/* ── Template Error Display ─────────────────────────── */}
       {isTemplateError && (
         <div className="mx-4 mb-3 px-3.5 py-3 bg-red-50 border border-red-200 rounded-xl relative">
@@ -998,56 +818,26 @@ const BulkReminderBar = () => {
 
       {/* ── Error display ───────────────────────────────────── */}
       {result?.error && !isTemplateError && (
->>>>>>> theirs
         <div className="mx-4 mb-3 px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-xl">
           <div className="flex items-start gap-2">
             <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />
             <div className="flex-1">
-<<<<<<< ours
-              <p className="text-xs text-red-600 font-medium mb-1">
-                {result.error.includes("template") ||
-                result.error.includes("130472")
-                  ? "WhatsApp Template Not Configured"
-                  : "Bulk Reminder Failed"}
-              </p>
-              <p className="text-xs text-red-500/80">{result.error}</p>
-              {(result.error.includes("template") ||
-                result.error.includes("130472")) && (
-                <p className="text-xs text-amber-600 mt-2 bg-amber-50 p-2 rounded-lg">
-                  💡 Tip: You need to configure WhatsApp templates in Meta
-                  Business Manager:
-                  <br />
-                  • khidmat_reminder_partial
-                  <br />
-                  • khidmat_reminder_pending
-                  <br />• khidmat_reminder_completed
-                </p>
-              )}
-=======
               <p className="text-xs font-semibold text-red-600 mb-1">
                 Bulk Reminder Failed
               </p>
               <p className="text-xs text-red-500/80">{result.error}</p>
->>>>>>> theirs
             </div>
           </div>
         </div>
       )}
 
-<<<<<<< ours
-      {/* Results detail panel (same as before) */}
-=======
       {/* ── Results detail panel ───────────────────────────── */}
->>>>>>> theirs
       {expanded && result?.results?.length > 0 && (
         <div className="mx-4 mb-3 border border-slate-200 rounded-xl overflow-hidden bg-white">
           <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100">
             <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
               <Users size={12} /> {result.total} records processed
-<<<<<<< ours
-=======
               {selectedCategory && ` in ${getSelectedCategoryName()}`}
->>>>>>> theirs
             </span>
             <div className="flex gap-3 text-xs">
               <span className="text-emerald-600 font-semibold">
@@ -1088,17 +878,6 @@ const BulkReminderBar = () => {
                 </div>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ml-2
-<<<<<<< ours
-            ${
-              r.status === "SENT"
-                ? "bg-emerald-100 text-emerald-700"
-                : r.status === "FAILED"
-                  ? "bg-red-100 text-red-600"
-                  : r.status === "SKIPPED"
-                    ? "bg-slate-100 text-slate-500"
-                    : "bg-slate-100 text-slate-500"
-            }`}
-=======
                     ${
                       r.status === "SENT"
                         ? "bg-emerald-100 text-emerald-700"
@@ -1108,7 +887,6 @@ const BulkReminderBar = () => {
                             ? "bg-slate-100 text-slate-500"
                             : "bg-slate-100 text-slate-500"
                     }`}
->>>>>>> theirs
                 >
                   {r.status}
                 </span>

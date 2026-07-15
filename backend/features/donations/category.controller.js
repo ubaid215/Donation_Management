@@ -46,21 +46,6 @@ export const getActiveCategories = asyncHandler(async (req, res) => {
 });
 
 export const updateCategory = asyncHandler(async (req, res) => {
-<<<<<<< ours
-  const ipAddress = req.ip || req.connection.remoteAddress;
-  const category = await categoryService.updateCategory(
-    req.params.id,
-    req.body,
-    req.user.id,
-    ipAddress
-  );
-
-  res.json({
-    success: true,
-    message: 'Category updated successfully',
-    category
-  });
-=======
   console.log("========== UPDATE CATEGORY ==========");
   console.log("Params:", req.params);
   console.log("Body:", req.body);
@@ -92,7 +77,6 @@ export const updateCategory = asyncHandler(async (req, res) => {
 
     throw error; // Let asyncHandler handle the response
   }
->>>>>>> theirs
 });
 
 export const deleteCategory = asyncHandler(async (req, res) => {

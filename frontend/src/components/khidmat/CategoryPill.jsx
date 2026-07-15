@@ -5,7 +5,12 @@
 
 import React from 'react';
 import { useDonations } from '../../context/DonationContext';
-import { getCategoryUrdu, getCategoryBilingual, urduClass } from '../../utils/categoryDisplay';
+import { 
+  getCategoryUrdu, 
+  getCategoryBilingual, 
+  urduClass,
+  hasCategoryUrdu 
+} from '../../utils/categoryDisplay.js';
 
 const CategoryPill = ({ categoryId, categoryFromRecord, showBoth = true }) => {
   const { activeCategories } = useDonations();
@@ -17,7 +22,7 @@ const CategoryPill = ({ categoryId, categoryFromRecord, showBoth = true }) => {
 
   const urduName = getCategoryUrdu(cat);
   const englishName = cat.name || '';
-  const hasUrdu = urduName && urduName !== englishName;
+  const hasUrdu = hasCategoryUrdu(cat);
 
   // If no Urdu name or same as English, just show English
   if (!hasUrdu || !showBoth) {
@@ -63,11 +68,11 @@ export const CategoryPillInline = ({ categoryId, categoryFromRecord }) => {
   }
 
   const displayName = getCategoryBilingual(cat);
-  const isUrdu = cat.nameUrdu && cat.nameUrdu !== cat.name;
+  const hasUrdu = hasCategoryUrdu(cat);
 
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 ${urduClass(displayName)}`} 
-          dir={isUrdu ? 'rtl' : 'ltr'}>
+          dir={hasUrdu ? 'rtl' : 'ltr'}>
       <span 
         className="w-2 h-2 rounded-full flex-shrink-0" 
         style={{ backgroundColor: cat.color || '#3b82f6' }} 

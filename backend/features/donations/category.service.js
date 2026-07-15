@@ -8,8 +8,6 @@ export class DonationCategoryService {
   }
 
   async createCategory(categoryData, userId, ipAddress = null) {
-<<<<<<< ours
-=======
     // Get translation outside transaction with shorter timeout
     let nameUrdu = null;
     if (categoryData.name) {
@@ -22,7 +20,6 @@ export class DonationCategoryService {
       }
     }
 
->>>>>>> theirs
     const category = await this.prisma.$transaction(async (tx) => {
       // Check if category name already exists
       const existing = await tx.donationCategory.findUnique({
@@ -33,19 +30,10 @@ export class DonationCategoryService {
         throw new Error('Category with this name already exists');
       }
 
-<<<<<<< ours
-      const nameUrdu = await translateToUrdu(categoryData.name);
-
-      const newCategory = await tx.donationCategory.create({
-        data: {
-          name: categoryData.name,
-          nameUrdu,
-=======
       const newCategory = await tx.donationCategory.create({
         data: {
           name: categoryData.name,
           nameUrdu: nameUrdu || categoryData.name,
->>>>>>> theirs
           description: categoryData.description,
           icon: categoryData.icon || 'Tag',
           color: categoryData.color || '#3b82f6',
@@ -63,10 +51,7 @@ export class DonationCategoryService {
         description: `Donation category "${categoryData.name}" created`,
         metadata: {
           name: categoryData.name,
-<<<<<<< ours
-=======
           nameUrdu: nameUrdu,
->>>>>>> theirs
           description: categoryData.description,
           icon: categoryData.icon,
           color: categoryData.color
@@ -75,11 +60,8 @@ export class DonationCategoryService {
       });
 
       return newCategory;
-<<<<<<< ours
-=======
     }, {
       timeout: 30000, // Increase transaction timeout to 30 seconds
->>>>>>> theirs
     });
 
     return category;
@@ -96,10 +78,7 @@ export class DonationCategoryService {
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
-<<<<<<< ours
-=======
           { nameUrdu: { contains: search, mode: 'insensitive' } },
->>>>>>> theirs
           { description: { contains: search, mode: 'insensitive' } }
         ]
       })
@@ -127,10 +106,6 @@ export class DonationCategoryService {
 
     // Calculate total amount for each category
     const categoriesWithStats = categories.map(cat => {
-<<<<<<< ours
-      // Convert Decimal amounts to numbers and sum them
-=======
->>>>>>> theirs
       const totalAmount = cat.donations.reduce((sum, donation) => {
         const amount = donation.amount ? parseFloat(donation.amount.toString()) : 0;
         return sum + amount;
@@ -189,10 +164,6 @@ export class DonationCategoryService {
       throw new Error('Category not found');
     }
 
-<<<<<<< ours
-    // Calculate total amount
-=======
->>>>>>> theirs
     const totalAmount = category.donations.reduce((sum, donation) => {
       return sum + parseFloat(donation.amount.toString());
     }, 0);
@@ -221,10 +192,6 @@ export class DonationCategoryService {
       }
     });
 
-<<<<<<< ours
-    // Calculate total amount for each category
-=======
->>>>>>> theirs
     return categories.map(cat => {
       const totalAmount = cat.donations.reduce((sum, donation) => {
         return sum + parseFloat(donation.amount.toString());
@@ -246,59 +213,6 @@ export class DonationCategoryService {
   }
 
   async updateCategory(id, updateData, userId, ipAddress = null) {
-<<<<<<< ours
-    const category = await this.prisma.$transaction(async (tx) => {
-      // Check if category exists
-      const existing = await tx.donationCategory.findUnique({
-        where: { id }
-      });
-
-      if (!existing) {
-        throw new Error('Category not found');
-      }
-
-      // If name is being updated, check for duplicates and re-translate
-      const updatePayload = { ...updateData };
-      if (updateData.name && updateData.name !== existing.name) {
-        const duplicate = await tx.donationCategory.findUnique({
-          where: { name: updateData.name }
-        });
-
-        if (duplicate) {
-          throw new Error('Category with this name already exists');
-        }
-        updatePayload.nameUrdu = await translateToUrdu(updateData.name);
-      }
-
-      const updatedCategory = await tx.donationCategory.update({
-        where: { id },
-        data: updatePayload
-      });
-
-      // Log the action
-      await createAuditLog({
-        action: 'USER_UPDATED',
-        userId,
-        userRole: 'ADMIN',
-        entityType: 'DONATION_CATEGORY',
-        entityId: updatedCategory.id,
-        description: `Donation category "${updatedCategory.name}" updated`,
-        metadata: {
-          updates: updateData,
-          previousValues: {
-            name: existing.name,
-            description: existing.description,
-            isActive: existing.isActive
-          }
-        },
-        ipAddress
-      });
-
-      return updatedCategory;
-    });
-
-    return category;
-=======
     console.log("\n========== CATEGORY SERVICE: updateCategory ==========");
     console.log("ID:", id);
     console.log("Update Data:", updateData);
@@ -372,15 +286,10 @@ export class DonationCategoryService {
       console.error("updateCategory ERROR:", error);
       throw error;
     }
->>>>>>> theirs
   }
 
   async deleteCategory(id, userId, ipAddress = null) {
     const result = await this.prisma.$transaction(async (tx) => {
-<<<<<<< ours
-      // Check if category exists
-=======
->>>>>>> theirs
       const category = await tx.donationCategory.findUnique({
         where: { id },
         include: {
@@ -394,10 +303,6 @@ export class DonationCategoryService {
         throw new Error('Category not found');
       }
 
-<<<<<<< ours
-      // Check if category has donations
-=======
->>>>>>> theirs
       if (category._count.donations > 0) {
         throw new Error(
           `Cannot delete category with ${category._count.donations} associated donations. Please reassign or remove them first.`
@@ -408,10 +313,6 @@ export class DonationCategoryService {
         where: { id }
       });
 
-<<<<<<< ours
-      // Log the action
-=======
->>>>>>> theirs
       await createAuditLog({
         action: 'USER_UPDATED',
         userId,
@@ -429,11 +330,8 @@ export class DonationCategoryService {
       });
 
       return { deleted: true, category };
-<<<<<<< ours
-=======
     }, {
       timeout: 30000,
->>>>>>> theirs
     });
 
     return result;
@@ -454,10 +352,6 @@ export class DonationCategoryService {
         data: { isActive: !existing.isActive }
       });
 
-<<<<<<< ours
-      // Log the action
-=======
->>>>>>> theirs
       await createAuditLog({
         action: 'USER_UPDATED',
         userId,
@@ -473,11 +367,8 @@ export class DonationCategoryService {
       });
 
       return updatedCategory;
-<<<<<<< ours
-=======
     }, {
       timeout: 30000,
->>>>>>> theirs
     });
 
     return category;
@@ -541,10 +432,6 @@ export class DonationCategoryService {
 
       for (const donation of donations) {
         try {
-<<<<<<< ours
-          // Find or create category based on purpose
-=======
->>>>>>> theirs
           let category = await this.prisma.donationCategory.findFirst({
             where: {
               name: donation.purpose,
@@ -553,12 +440,6 @@ export class DonationCategoryService {
           });
 
           if (!category) {
-<<<<<<< ours
-            // Create new category
-            category = await this.prisma.donationCategory.create({
-              data: {
-                name: donation.purpose,
-=======
             // Get translation for new category
             let nameUrdu = null;
             try {
@@ -571,7 +452,6 @@ export class DonationCategoryService {
               data: {
                 name: donation.purpose,
                 nameUrdu: nameUrdu,
->>>>>>> theirs
                 description: `Category for ${donation.purpose} donations`,
                 isActive: true
               }
@@ -579,10 +459,6 @@ export class DonationCategoryService {
             console.log(`Created new category: ${category.name}`);
           }
 
-<<<<<<< ours
-          // Update donation with categoryId
-=======
->>>>>>> theirs
           await this.prisma.donation.update({
             where: { id: donation.id },
             data: { categoryId: category.id }

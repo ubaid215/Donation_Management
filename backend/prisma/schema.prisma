@@ -1,14 +1,5 @@
 // ============================================================
-<<<<<<< ours
-// schema.prisma — Donation Management System
-// Updated: KhidmatRecord installment tracking
-//   - amount        = total pledged (unchanged)
-//   - receivedAmount = running total collected (new)
-//   - KhidmatPayment = individual installment log (new model)
-//   - New audit actions: KHIDMAT_PAYMENT_ADDED
-=======
 // prisma/schema.prisma — Fixed with proper relation syntax
->>>>>>> theirs
 // ============================================================
 
 generator client {
@@ -38,17 +29,6 @@ enum PaymentMethod {
   CHEQUE
 }
 
-<<<<<<< ours
-// Status of a KhidmatRecord — drives WhatsApp message template
-enum KhidmatStatus {
-  COMPLETED    // Fully paid / service complete
-  PARTIAL      // Partially paid — receivedAmount < amount
-  RECORD_ONLY  // Just recording — no payment yet
-}
-
-enum AuditAction {
-  // ── Donation ──────────────────────────────
-=======
 enum KhidmatStatus {
   COMPLETED
   PARTIAL
@@ -70,7 +50,6 @@ enum ReminderStatus {
 }
 
 enum AuditAction {
->>>>>>> theirs
   DONATION_CREATED
   DONATION_EMAIL_SENT
   EMAIL_SENT
@@ -85,11 +64,6 @@ enum AuditAction {
   DONATION_DELETED
   DONATION_RESTORED
   WHATSAPP_SKIPPED
-<<<<<<< ours
-
-  // ── Auth / User ───────────────────────────
-=======
->>>>>>> theirs
   OPERATOR_LOGIN
   ADMIN_LOGIN
   EMAIL_CHANGED
@@ -98,15 +72,7 @@ enum AuditAction {
   PASSWORD_CHANGED
   PASSWORD_RESET_REQUESTED
   PASSWORD_RESET_COMPLETED
-<<<<<<< ours
-
-  // ── Reports ───────────────────────────────
   PDF_EXPORTED
-
-  // ── KhidmatRecord ─────────────────────────
-=======
-  PDF_EXPORTED
->>>>>>> theirs
   KHIDMAT_CREATED
   KHIDMAT_UPDATED
   KHIDMAT_DELETED
@@ -115,16 +81,12 @@ enum AuditAction {
   KHIDMAT_WHATSAPP_FAILED
   KHIDMAT_WHATSAPP_SKIPPED
   KHIDMAT_PAYMENT_ADDED
-<<<<<<< ours
-  KHIDMAT_BULK_REMINDER_SENT     
-=======
   KHIDMAT_BULK_REMINDER_SENT
   KHIDMAT_PERSON_WHATSAPP_SENT
   REMINDER_SCHEDULE_CREATED
   REMINDER_SCHEDULE_UPDATED
   REMINDER_SCHEDULE_DELETED
   REMINDER_SCHEDULE_RUN
->>>>>>> theirs
 }
 
 // ─────────────────────────────────────────────
@@ -147,20 +109,12 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-<<<<<<< ours
-  donationsCreated Donation[]        @relation("OperatorDonations")
-  donationsDeleted Donation[]        @relation("DeletedDonations")
-  khidmatCreated   KhidmatRecord[]   @relation("KhidmatOperator")
-  khidmatDeleted   KhidmatRecord[]   @relation("KhidmatDeletedBy")
-  auditLogs        AuditLog[]
-=======
   donationsCreated       Donation[]              @relation("OperatorDonations")
   donationsDeleted       Donation[]              @relation("DeletedDonations")
   khidmatCreated         KhidmatRecord[]         @relation("KhidmatOperator")
   khidmatDeleted         KhidmatRecord[]         @relation("KhidmatDeletedBy")
   reminderSchedules      ReminderSchedule[]
   auditLogs              AuditLog[]
->>>>>>> theirs
 
   @@map("users")
 }
@@ -217,11 +171,7 @@ model Donation {
 model DonationCategory {
   id          String   @id @default(uuid())
   name        String   @unique
-<<<<<<< ours
-  nameUrdu    String?  // Auto-translated from name (en → ur)
-=======
   nameUrdu    String?
->>>>>>> theirs
   description String?
   icon        String?  @default("Tag")
   color       String?  @default("#3b82f6")
@@ -235,27 +185,6 @@ model DonationCategory {
   @@map("donation_categories")
 }
 
-<<<<<<< ours
-// ─────────────────────────────────────────────
-// KhidmatRecord
-// ─────────────────────────────────────────────
-model KhidmatRecord {
-  id String @id @default(uuid())
-
-  // ── Person ────────────────────────────────
-  name    String
-  phone   String
-  address String?
-
-  // ── Financials ────────────────────────────
-  // amount         = total pledged / committed
-  // receivedAmount = sum of all installments collected so far
-  // remainingAmount is always computed: amount - receivedAmount
-  amount         Decimal @db.Decimal(10, 2)
-  receivedAmount Decimal @db.Decimal(10, 2) @default(0)
-
-  // ── Service ───────────────────────────────
-=======
 model KhidmatRecord {
   id String @id @default(uuid())
 
@@ -267,15 +196,10 @@ model KhidmatRecord {
   amount         Decimal @db.Decimal(10, 2)
   receivedAmount Decimal @db.Decimal(10, 2) @default(0)
 
->>>>>>> theirs
   categoryId String
   status     KhidmatStatus @default(RECORD_ONLY)
   notes      String?
 
-<<<<<<< ours
-  // ── WhatsApp ──────────────────────────────
-=======
->>>>>>> theirs
   whatsappSent            Boolean   @default(false)
   whatsappSentAt          DateTime?
   whatsappMessageId       String?   @unique
@@ -283,69 +207,37 @@ model KhidmatRecord {
   whatsappStatus          String?   @default("PENDING")
   whatsappStatusUpdatedAt DateTime?
 
-<<<<<<< ours
-  // ── Soft-delete ───────────────────────────
-=======
->>>>>>> theirs
   isDeleted      Boolean   @default(false)
   deletedAt      DateTime?
   deletionReason String?
 
-<<<<<<< ours
-  // ── Meta ──────────────────────────────────
-=======
->>>>>>> theirs
   operatorId String
   deletedBy  String?
   date       DateTime @default(now())
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-<<<<<<< ours
-  // ── Relations ─────────────────────────────
-  operator      User              @relation("KhidmatOperator",  fields: [operatorId], references: [id])
-  deletedByUser User?             @relation("KhidmatDeletedBy", fields: [deletedBy],  references: [id])
-  category      DonationCategory  @relation(fields: [categoryId], references: [id])
-  payments      KhidmatPayment[]  // installment history
-=======
   operator      User              @relation("KhidmatOperator",  fields: [operatorId], references: [id])
   deletedByUser User?             @relation("KhidmatDeletedBy", fields: [deletedBy],  references: [id])
   category      DonationCategory  @relation(fields: [categoryId], references: [id])
   payments      KhidmatPayment[]
   reminderRecords ReminderScheduleRecord[]
->>>>>>> theirs
 
   @@map("khidmat_records")
   @@index([operatorId])
   @@index([categoryId])
   @@index([status])
   @@index([deletedBy])
-<<<<<<< ours
-}
-
-// ─────────────────────────────────────────────
-// KhidmatPayment
-// Each row = one installment added to a KhidmatRecord.
-// receivedAmount on the parent is always the SUM of these.
-// ─────────────────────────────────────────────
-=======
   @@index([phone])
 }
 
->>>>>>> theirs
 model KhidmatPayment {
   id       String  @id @default(uuid())
   recordId String
 
-<<<<<<< ours
-  amount  Decimal  @db.Decimal(10, 2)   // this installment amount
-  notes   String?                        // optional note e.g. "received via bank"
-  paidAt  DateTime @default(now())       // when this payment was received
-=======
   amount  Decimal  @db.Decimal(10, 2)
   notes   String?
   paidAt  DateTime @default(now())
->>>>>>> theirs
 
   createdAt DateTime @default(now())
 
@@ -356,8 +248,6 @@ model KhidmatPayment {
   @@index([paidAt])
 }
 
-<<<<<<< ours
-=======
 model ReminderSchedule {
   id           String   @id @default(uuid())
   name         String
@@ -402,7 +292,6 @@ model ReminderScheduleRecord {
   @@index([status])
 }
 
->>>>>>> theirs
 model AuditLog {
   id          String      @id @default(uuid())
   action      AuditAction

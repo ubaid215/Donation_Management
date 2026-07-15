@@ -1,11 +1,8 @@
 // ============================================================
 // utils/pdfFonts.js
 // Urdu font registration for PDFKit (Jameel Noori Nastaleeq)
-<<<<<<< ours
-=======
 // Updated: width-aware truncation + per-segment font rendering
 // for bilingual (Latin / Urdu) strings.
->>>>>>> theirs
 // ============================================================
 
 import path from 'path';
@@ -89,8 +86,6 @@ export function writePdfText(doc, text, x, y, opts = {}) {
     continued,
   });
 }
-<<<<<<< ours
-=======
 
 // ────────────────────────────────────────────────────────────
 // Width-aware truncation
@@ -221,4 +216,3 @@ export function writeBilingualText(doc, primary, secondary, x, y, opts = {}) {
   doc.font(secondaryFont).fontSize(size);
   doc.text(fittedSecondary, { lineBreak: false, continued: false });
 }
->>>>>>> theirs

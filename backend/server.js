@@ -1,10 +1,7 @@
-<<<<<<< ours
-=======
 // ============================================================
 // server.js - Add scheduler initialization
 // ============================================================
 
->>>>>>> theirs
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -27,22 +24,15 @@ import khidmatRoutes from './features/khidmatRecord/khidmat.routes.js';
 import whatsappTestRoutes from './features/whatsapp/whatsapp-test.route.js';
 import webhookRoutes from './routes/webhook.routes.js';
 
-<<<<<<< ours
-=======
 // Import scheduler
 import { initScheduler } from './features/khidmatRecord/scheduler.service.js';
 
->>>>>>> theirs
 // Import prisma for health check
 import prisma from './config/prisma.js'; 
 
 const app = express();
 
-<<<<<<< ours
-// ========== MIDDLEWARE SETUP - MUST COME FIRST ==========
-=======
 // ========== MIDDLEWARE SETUP ==========
->>>>>>> theirs
 
 // Security headers
 app.use(helmet({
@@ -59,11 +49,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-<<<<<<< ours
-// CORS configuration - APPLIED TO ALL ROUTES INCLUDING WEBHOOKS
-=======
 // CORS configuration
->>>>>>> theirs
 app.use(cors({
   origin: config.security.corsOrigin,
   credentials: true,
@@ -71,10 +57,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-<<<<<<< ours
-// Handle preflight requests
-=======
->>>>>>> theirs
 app.options('*', cors());
 
 // Rate limiting
@@ -138,15 +120,8 @@ app.use((req, res, next) => {
 
 // ========== ROUTES ==========
 
-<<<<<<< ours
-// Webhook routes - NOW WITH CORS APPLIED
-app.use('/api/webhook', webhookRoutes);
-
-// Also keep the original path for Meta's webhook calls (no CORS needed)
-=======
 // Webhook routes
 app.use('/api/webhook', webhookRoutes);
->>>>>>> theirs
 app.use('/webhook', webhookRoutes);
 
 // Health check endpoint
@@ -187,12 +162,8 @@ app.get('/api', (req, res) => {
       donations: '/api/donations',
       admin: '/api/admin',
       reports: '/api/reports',
-<<<<<<< ours
-      audit: '/api/audit'
-=======
       audit: '/api/audit',
       khidmat: '/api/khidmat'
->>>>>>> theirs
     }
   });
 });
@@ -260,21 +231,15 @@ app.use((error, req, res, next) => {
 
 // ========== SERVER STARTUP ==========
 
-<<<<<<< ours
-=======
 let schedulerJobs = null;
 
->>>>>>> theirs
 const startServer = async () => {
   try {
     await connectPrisma();
     
-<<<<<<< ours
-=======
     // Initialize scheduler
     schedulerJobs = initScheduler();
     
->>>>>>> theirs
     const server = app.listen(config.port, () => {
       console.log(`🚀 Server is running on port ${config.port}`);
       console.log(`🌍 Environment: ${config.nodeEnv}`);
@@ -288,8 +253,6 @@ const startServer = async () => {
     const shutdown = async (signal) => {
       console.log(`\n${signal} received. Starting graceful shutdown...`);
       
-<<<<<<< ours
-=======
       // Stop scheduler
       if (schedulerJobs) {
         console.log('⏰ Stopping scheduler...');
@@ -297,7 +260,6 @@ const startServer = async () => {
         schedulerJobs.healthJob.stop();
       }
       
->>>>>>> theirs
       server.close(async () => {
         console.log('HTTP server closed');
         await disconnectPrisma();

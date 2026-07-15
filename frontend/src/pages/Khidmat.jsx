@@ -1,18 +1,9 @@
 // ============================================================
-<<<<<<< ours
-// pages/Khidmat.jsx — tabbed: Records | Analytics
-// Now includes BulkReminderBar for one-click mass reminders
-// ============================================================
-
-import React, { useEffect, useState } from 'react'
-import { Plus, FileDown, HandHeart, TrendingUp, List, User } from 'lucide-react'
-=======
 // pages/Khidmat.jsx — Updated with Scheduler tab
 // ============================================================
 
 import React, { useEffect, useState } from 'react'
 import { Plus, FileDown, HandHeart, TrendingUp, List, User, Clock } from 'lucide-react'
->>>>>>> theirs
 import { KhidmatProvider, useKhidmat } from '../context/KhidmatContext'
 import KhidmatFilter    from '../components/khidmat/KhidmatFilter'
 import KhidmatTable     from '../components/khidmat/KhidmatTable'
@@ -20,19 +11,13 @@ import KhidmatForm      from '../components/khidmat/KhidmatForm'
 import KhidmatAnalytics from '../components/khidmat/KhidmatAnalytics'
 import KhidmatByPerson  from '../components/khidmat/KhidmatByPerson'
 import BulkReminderBar  from '../components/khidmat/BulkReminderBar'
-<<<<<<< ours
-=======
 import SchedulerManager from '../components/khidmat/SchedulerManager'
->>>>>>> theirs
 
 const TABS = [
   { id: 'records',   label: 'Records',   icon: List       },
   { id: 'by-person', label: 'By Person', icon: User       },
   { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-<<<<<<< ours
-=======
   { id: 'scheduler', label: 'Scheduler', icon: Clock     },
->>>>>>> theirs
 ]
 
 const KhidmatPageInner = () => {
@@ -44,11 +29,6 @@ const KhidmatPageInner = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, filters.categoryId, filters.startDate, filters.endDate, filters.page, activeTab])
 
-<<<<<<< ours
-  // By-person tab handles its own data loading via KhidmatByPerson
-
-=======
->>>>>>> theirs
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-5">
@@ -81,11 +61,7 @@ const KhidmatPageInner = () => {
         </div>
 
         {/* Tabs */}
-<<<<<<< ours
-        <div className="flex gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit shadow-sm">
-=======
         <div className="flex flex-wrap gap-1 bg-white border border-slate-200 rounded-xl p-1 w-fit shadow-sm">
->>>>>>> theirs
           {TABS.map(tab => {
             const Icon = tab.icon; const active = activeTab === tab.id
             return (
@@ -109,23 +85,14 @@ const KhidmatPageInner = () => {
           </>
         ) : activeTab === 'by-person' ? (
           <KhidmatByPerson />
-<<<<<<< ours
-        ) : (
-          <KhidmatAnalytics />
-=======
         ) : activeTab === 'analytics' ? (
           <KhidmatAnalytics />
         ) : (
           <SchedulerManager />
->>>>>>> theirs
         )}
       </div>
 
       <KhidmatForm />
-<<<<<<< ours
-      {/* AddPaymentModal removed — payment is now inline in KhidmatTable expanded rows */}
-=======
->>>>>>> theirs
     </div>
   )
 }

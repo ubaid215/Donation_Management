@@ -1,9 +1,6 @@
 // ============================================================
 // services/khidmat.service.js
-<<<<<<< ours
-=======
 // Add new methods
->>>>>>> theirs
 // ============================================================
 
 import api from './api'
@@ -18,14 +15,6 @@ export const deleteKhidmatRecord = (id, reason = '') =>
   api.delete(`/khidmat/${id}`, { data: { reason } })
 export const restoreKhidmatRecord = (id) => api.post(`/khidmat/${id}/restore`)
 
-<<<<<<< ours
-// ── Payments / installments ───────────────────
-/** Add a new installment: { amount, notes?, paidAt? } */
-export const addKhidmatPayment  = (id, data) => api.post(`/khidmat/${id}/payments`, data)
-/** Get full payment history for a record */
-export const getKhidmatPayments = (id)       => api.get(`/khidmat/${id}/payments`)
-
-=======
 // ── Payments ──────────────────────────────────
 export const addKhidmatPayment  = (id, data) => api.post(`/khidmat/${id}/payments`, data)
 export const getKhidmatPayments = (id)       => api.get(`/khidmat/${id}/payments`)
@@ -35,40 +24,27 @@ export const getPersonPayments = (phone) =>
   api.get(`/khidmat/person/${encodeURIComponent(phone)}/payments`)
 
 export const sendPersonWhatsApp = (phone, statusFilter) => {
+  // Build query params if statusFilter is provided
   const params = statusFilter ? { statusFilter } : {}
   
-  // Use undefined instead of null for better Axios compatibility
+  // IMPORTANT: Pass null as body for POST with no body
+  // or use empty object {}
   return api.post(
     `/khidmat/person/${encodeURIComponent(phone)}/whatsapp`,
-    undefined,  // or just omit the second parameter
+    null,  // No request body needed
     { params }
   )
 }
 
->>>>>>> theirs
 // ── WhatsApp ──────────────────────────────────
 export const sendKhidmatWhatsApp = (id) => api.post(`/khidmat/${id}/whatsapp`)
 
 // ── Bulk Reminders ────────────────────────────
-<<<<<<< ours
-/**
- * Send bulk WhatsApp reminders
- * @param {Object} payload - { recordIds?: string[], statuses?: string[], filters?: { categoryId?, startDate?, endDate? } }
- * @returns {Promise<{ sent: number, failed: number, skipped: number, total: number, results: Array }>}
- */
-export const sendBulkReminders = async (payload = {}) => {
-  try {
-    const response = await api.post('/khidmat/bulk-reminders', payload)
-    return response // response already contains the data from interceptor
-  } catch (error) {
-    // If the error has a response with data, pass that through
-=======
 export const sendBulkReminders = async (payload = {}) => {
   try {
     const response = await api.post('/khidmat/bulk-reminders', payload)
     return response
   } catch (error) {
->>>>>>> theirs
     if (error.response?.data) {
       throw new Error(error.response.data.error || error.response.data.message || 'Failed to send bulk reminders')
     }
@@ -76,14 +52,6 @@ export const sendBulkReminders = async (payload = {}) => {
   }
 }
 
-<<<<<<< ours
-/**
- * Preview bulk reminders (count only)
- * @param {Object} params - { statuses?: string, categoryId?, startDate?, endDate? }
- * @returns {Promise<{ total: number, byStatus: Array }>}
- */
-export const previewBulkReminders = (params = {}) => api.get('/khidmat/bulk-reminders/preview', { params })
-=======
 export const previewBulkReminders = (params = {}) => 
   api.get('/khidmat/bulk-reminders/preview', { params })
 
@@ -93,7 +61,6 @@ export const createSchedule = (data) => api.post('/khidmat/schedules', data)
 export const updateSchedule = (id, data) => api.put(`/khidmat/schedules/${id}`, data)
 export const deleteSchedule = (id) => api.delete(`/khidmat/schedules/${id}`)
 export const runSchedule = (id) => api.post(`/khidmat/schedules/${id}/run`)
->>>>>>> theirs
 
 // ── Stats & Analytics ─────────────────────────
 export const getKhidmatStats     = (params = {}) => api.get('/khidmat/stats',     { params })
